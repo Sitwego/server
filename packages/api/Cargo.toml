@@ -1,0 +1,85 @@
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2024"
+default-run = "api"
+
+[[bin]]
+name = "api"
+
+[dependencies]
+async-trait.workspace = true
+notif_api.workspace = true
+axum.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dotenv.workspace = true
+envy.workspace = true
+time.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+argon2 = "0.5.3"
+tower.workspace = true
+jsonwebtoken.workspace = true
+db_store.workspace = true
+utils = { workspace = true }
+url.workspace = true
+payment.workspace = true
+aws = { workspace = true }
+rustc-hash.workspace = true
+redis_store.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+geojson.workspace = true
+geo.workspace = true
+fred.workspace = true
+futures.workspace = true
+dashmap.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+sqlx.workspace = true
+sea-orm.workspace = true
+hyper.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+mimalloc = {workspace = true, features = ["secure"]}
+aes-gcm = "0.10.3"
+sha2.workspace = true
+axum-macros.workspace = true
+google_maps = "3.8.1"
+pathfinding = "4.14.0"
+reqwest-retry = "0.7.0"
+simd-json.workspace = true
+smallvec.workspace = true
+shared_macro = { workspace = true }
+sms_api = { workspace = true }
+rust_decimal.workspace = true
+num-traits.workspace = true
+kdtree = "0.7"
+axum_typed_multipart = "0.16.3"
+tempfile = "3.12.0"
+lazy_static = "1.5.0"
+moka = { version = "0.12.8", features = ["future"] }
+nanoid.workspace = true
+# for repeating tasks
+tokio-cron-scheduler = {version = "0.15.0", features = ["signal"]}
+chrono-tz = "0.10.4"
+futures-core = "0.3.31"
+async-stream = "0.3.6"
+futures-util = "0.3.31"
+
+[dev-dependencies]
+tracing-test = "0.2.5"
+
+[features]
+default = ["reqwest", "reqwest-multipart", "reqwest-middleware", "reqwest-json"]
+reqwest = ["utils/reqwest"]
+reqwest-json = ["utils/reqwest-json"]
+reqwest-multipart = ["utils/reqwest-multipart"]
+reqwest-middleware = ["utils/reqwest-middleware"]
+
+[profile.dev] 
+opt-level=1

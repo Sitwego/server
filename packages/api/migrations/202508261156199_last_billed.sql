@@ -1,0 +1,1 @@
+ALTER TABLE subscriptions ADD COLUMN last_billed_at TIMESTAMP WITH TIME ZONE;

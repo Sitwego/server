@@ -1,0 +1,1 @@
+ALTER TABLE ride ADD COLUMN is_ride_during_free_trial BOOLEAN NOT NULL DEFAULT false;

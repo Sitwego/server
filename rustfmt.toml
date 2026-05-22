@@ -1,0 +1,32 @@
+# Set the maximum width of each line
+max_width = 80
+
+# Use spaces instead of tabs
+hard_tabs = false
+
+# Number of spaces per tab
+tab_spaces = 4
+
+# Rust edition to use
+edition = "2024"
+
+# Control the formatting of chains (method/field access)
+chain_width = 80
+
+# Organize imports by crate
+# imports_granularity = "Crate"
+
+# Align struct fields vertically
+# struct_field_align_threshold = 20
+
+# Wrap comments at the maximum width
+# wrap_comments = true
+
+# Format code in `#[macro_use]` extern crate macros
+# format_macro_matchers = true
+
+# Format string literals where necessary
+# format_strings = true
+
+# Reorder imports alphabetically
+reorder_imports = true

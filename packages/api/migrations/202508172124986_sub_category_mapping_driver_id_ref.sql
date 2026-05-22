@@ -1,0 +1,1 @@
+CREATE INDEX vehicle_category_mappings_driver_id_idx ON vehicle_category_mappings(driver_id);

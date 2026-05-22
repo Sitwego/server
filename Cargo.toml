@@ -1,0 +1,104 @@
+[workspace]
+resolver = "3"
+members = [
+  "packages/api",
+  "packages/aws",
+  "packages/db_store",
+  "packages/email_api",
+  "packages/kafka",
+  "packages/notif_api",
+  "packages/payment",
+  "packages/redis_store",
+  "packages/shared_macro",
+  "packages/sms_api",
+  "packages/twilio",
+  "packages/utils",
+]
+package.edition = "2024"
+package.license = "AGPL-3.0-or-later"
+package.version = "0.1.0"
+
+[workspace.dependencies]
+utils = {path = "packages/utils" }
+aws = {path = "packages/aws"}
+redis_store = {path = "packages/redis_store"}
+db_store = {path = "packages/db_store"}
+payment = { path = "packages/payment"}
+email_api = { path = "packages/email_api" }
+notif_api = { path = "packages/notif_api" }
+sms_api   = { path = "packages/sms_api" }
+shared_macro = {path = "packages/shared_macro"}
+nanoid = "0.4.0"
+argon2 = "0.5.0"
+base64 = "0.22.1"
+openssl = { version = "0.10.73" }
+sha2 = "0.10.8"
+async-trait = "0.1.88"
+axum = "0.8.4"
+smallvec = { version = "1.13", features = ["serde"] }
+axum-extra = { version = "0.10.0", features = ["cookie"] }
+chrono = { version = "0.4.41" }
+dotenv = "0.15.0"
+dotenvy = "0.15"
+lazy_static = "1.5.0"
+jsonwebtoken = "9.3.1"
+rand_core = { version = "0.9.1", features = ["std"] }
+rand = "0.9.0"
+sea-orm = { version = "1.1.16", features = ["sqlx-postgres", "postgres-array", "runtime-tokio-rustls", "with-uuid", "with-json", "macros"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.95"
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "json", "time", "uuid", "any"] }
+tokio = { version = "1.45.1", features = ["full"] }
+tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+tower = "0.5.2"
+uuid = { version = "1.3.0", features = ["serde", "v4"] }
+ulid = "1.2.1"
+url = "2.5.7"
+rust_decimal = "1.37.2"
+num-traits = "0.2.19"
+envy = "0.4.2"
+hyper = { version = "1", features = ["full"] }
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
+anyhow = "1.0.91"
+fred = {version = "10.1.0", features = ["transactions","serde-json", "partial-tracing", "enable-native-tls", "sha-1", "i-all", "i-hexpire"]}
+socket2 = "0.5"
+once_cell = "1.20.2"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.19"
+strum = "0.27.1"
+strum_macros = "0.27.1"
+geo = "0.29.0"
+simd-json = "0.15.0"
+geojson = "0.24.1"
+rustc-hash = {version = "2.0.0", features = ["rand"]}
+thiserror = "2.0.12"
+error-stack = "0.5.0"
+dashmap = "6.1.0"
+hashbrown = "0.15.1"
+futures = "0.3.28"
+indexmap = { version = "2.7.0", features = ["serde"] }
+axum-macros = "0.5.0"
+rustls = { version = "0.23.22" }
+rustls-platform-verifier = "0.5.0"
+mimalloc = "0.1.43"
+icu_locale_core = "2.0.0"
+time = { version = "0.3.41", features = [
+    "macros",
+    "parsing",
+    "serde",
+    "serde-well-known",
+    "formatting",
+] }
+
+[profile.release]
+debug = 1
+opt-level = 2  # or 1, instead of 3
+lto = false    # Disable fat LTO
+codegen-units = 4  # Increase parallelism to reduce memory per unit
+
+
+[workspace.features]
+reqwest = ["utils/reqwest"]
+reqwest-multipart = ["utils/reqwest-multipart"]
+reqwest-middleware = ["utils/reqwest-middleware"]

@@ -1,0 +1,401 @@
+{
+  "info": {
+    "name": "sit-we-go",
+    "_postman_id": "sit-we-go-api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "driver_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Driver",
+      "item": [
+        {
+          "name": "Get Rating Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/driver/{{driver_id}}/rating-summary",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "driver", "{{driver_id}}", "rating-summary"]
+            },
+            "description": "Returns the driver's rating summary: average, total reviews, recommendation %, star breakdown, and 10 most recent reviews."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has expected fields\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('average');",
+                  "    pm.expect(body).to.have.property('totalReviews');",
+                  "    pm.expect(body).to.have.property('recommendPercent');",
+                  "    pm.expect(body.breakdown).to.be.an('array').with.lengthOf(5);",
+                  "    pm.expect(body.recentReviews).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Create Customer Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact_data\": {\n    \"email\": \"jane@example.com\",\n    \"phone_number\": \"+254711000111\"\n  },\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Doe\",\n  \"gender\": \"female\",\n  \"mobile_country_code\": \"+254\",\n  \"password\": \"SecurePass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/create-profile/customer",
+              "host": ["{{base_url}}"],
+              "path": ["create-profile", "customer"]
+            },
+            "description": "Register a new customer (rider) account. Returns a `profile_id` and a JWT `token` for immediate authentication. No auth header required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has profile_id and token\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('profile_id');",
+                  "    pm.expect(body).to.have.property('token');",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.token) { pm.collectionVariables.set('token', body.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Driver Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact_data\": {\n    \"email\": \"john.driver@example.com\",\n    \"phone_number\": \"+254722000222\"\n  },\n  \"first_name\": \"John\",\n  \"last_name\": \"Driver\",\n  \"gender\": \"male\",\n  \"mobile_country_code\": \"+254\",\n  \"password\": \"SecurePass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/create-profile/driver",
+              "host": ["{{base_url}}"],
+              "path": ["create-profile", "driver"]
+            },
+            "description": "Register a new driver account. Returns a `profile_id` and a JWT `token` for immediate authentication. No auth header required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has profile_id and token\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('profile_id');",
+                  "    pm.expect(body).to.have.property('token');",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.token) { pm.collectionVariables.set('token', body.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save Bio",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Software engineer who loves road trips.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/profile/bio",
+              "host": ["{{base_url}}"],
+              "path": ["api", "profile", "bio"]
+            },
+            "description": "Save bio and optional date of birth for the authenticated profile. Requires a valid Bearer token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ,
+    {
+      "name": "2FA",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+254711000111\",\n  \"channel\": \"sms\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/2fa/send",
+              "host": ["{{base_url}}"],
+              "path": ["api", "2fa", "send"]
+            },
+            "description": "Send a one-time passcode to the given phone number via Twilio Verify.\n\n- `phone_number` — E.164 format, e.g. `\"+254711000111\"`\n- `channel` — `\"sms\"` (default) | `\"call\"` | `\"whatsapp\"`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has sid and status\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('sid');",
+                  "    pm.expect(body).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+254711000111\",\n  \"code\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/2fa/verify",
+              "host": ["{{base_url}}"],
+              "path": ["api", "2fa", "verify"]
+            },
+            "description": "Check the OTP code entered by the user.\n\nReturns `{ \"approved\": true }` on success.\nReturns `401 Unauthorized` with a validation error if the code is wrong or expired."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"approved is true\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.approved).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customer",
+      "item": [
+        {
+          "name": "Patch Customer Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Doe\",\n  \"mobile_country_code\": \"+254\",\n  \"dob\": \"1995-06-15\",\n  \"avatar_url\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/customer/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customer", "profile"]
+            },
+            "description": "Partially update the authenticated rider's profile. Only fields included in the body are changed. All fields are optional.\n\n- `dob` must be in YYYY-MM-DD format if provided.\n- `avatar_url` maps to `face_image_id` in the DB."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upsert Customer Address",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"street\": \"123 Ngong Road\",\n  \"city\": \"Nairobi\",\n  \"state\": \"Nairobi County\",\n  \"zip\": \"00100\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/customer/profile/address",
+              "host": ["{{base_url}}"],
+              "path": ["api", "customer", "profile", "address"]
+            },
+            "description": "Create or replace the rider's saved address. If no address row exists it is inserted; otherwise it is updated. Any field can be null to clear it."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

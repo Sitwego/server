@@ -1,0 +1,1 @@
+ALTER TABLE subscriptions ADD COLUMN free_trial_end_date TIMESTAMP WITH TIME ZONE;

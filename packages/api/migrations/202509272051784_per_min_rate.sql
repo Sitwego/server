@@ -1,0 +1,1 @@
+ALTER TABLE vehicle_categories ADD COLUMN per_min_rate INTEGER;

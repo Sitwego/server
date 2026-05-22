@@ -1,0 +1,27 @@
+[package]
+name = "payment"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+utils = { workspace = true }
+redis_store.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+url.workspace = true
+chrono.workspace = true
+openssl.workspace = true
+lazy_static.workspace = true
+secrecy = "0.10.3"
+reqwest-retry = "0.7.0"
+derive_builder = "0.20.2"
+moka = { version = "0.12.8", features = ["future"] }
+serde-aux = "4.7.0"
+
+[features]
+default = ["reqwest", "reqwest-middleware", "reqwest-json"]
+reqwest = ["utils/reqwest"]
+reqwest-json = ["utils/reqwest-json"]
+reqwest-middleware = ["utils/reqwest-middleware"]

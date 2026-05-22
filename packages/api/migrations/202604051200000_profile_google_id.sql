@@ -1,0 +1,2 @@
+ALTER TABLE profile
+    ADD COLUMN id_token VARCHAR(255);

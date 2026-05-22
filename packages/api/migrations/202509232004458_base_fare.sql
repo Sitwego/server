@@ -1,0 +1,1 @@
+ALTER TABLE vehicle_categories ADD COLUMN min_fare INTEGER;

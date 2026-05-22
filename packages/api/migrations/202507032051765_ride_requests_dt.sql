@@ -1,0 +1,1 @@
+ALTER TABLE ride_requests ADD COLUMN estimated_duration INTEGER;

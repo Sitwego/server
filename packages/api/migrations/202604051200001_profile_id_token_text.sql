@@ -1,0 +1,2 @@
+ALTER TABLE profile
+    ALTER COLUMN id_token TYPE TEXT;

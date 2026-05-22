@@ -1,0 +1,10 @@
+/target
+docker-compose.yml
+/scripts
+.mongo
+files
+.env*
+tmp
+.claude/
+.agents/
+skills-lock.json
