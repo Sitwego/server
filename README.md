@@ -2,6 +2,8 @@
 
 **A community-driven, open-source mobility platform**
 
+![Sit-We-Go vehicles, drivers, and riders](docs/images/sitwego_vehicles_drivers_and_riders.jpg)
+
 Sit-We-Go is an open mobility platform built to empower drivers and riders alike. This repository hosts the backend services that power the Sit-We-Go ride-hailing experience.
 
 ## Vision
