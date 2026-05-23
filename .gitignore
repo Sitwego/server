@@ -4,6 +4,7 @@ docker-compose.yml
 .mongo
 files
 .env*
+!.env.example
 tmp
 .claude/
 .agents/

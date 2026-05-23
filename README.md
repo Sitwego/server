@@ -56,6 +56,48 @@ This repository is a Rust Cargo workspace. Each crate lives under [packages/](pa
 | [packages/utils](packages/utils) | Shared utilities (hashing, HTTP helpers) |
 | [packages/shared_macro](packages/shared_macro) | Shared procedural macros |
 
+## Getting Started
+
+### Prerequisites
+- **Rust** `1.92.0` (pinned in [rust-toolchain.toml](rust-toolchain.toml) — `rustup` will install it automatically).
+- **PostgreSQL** with the **PostGIS** extension enabled (the API uses geospatial types for nearby-driver lookups, ride geometries, etc.).
+- **Redis** (standalone or cluster).
+
+### 1. Set up PostgreSQL
+Create a database and enable PostGIS:
+
+```sql
+CREATE DATABASE sitwego;
+\c sitwego
+CREATE EXTENSION IF NOT EXISTS postgis;
+```
+
+Migrations under [packages/api/migrations](packages/api/migrations) are applied automatically on API startup.
+
+### 2. Set up Redis
+Run a local Redis instance (e.g. `redis-server` or `docker run -p 6379:6379 redis:7`). For development, standalone mode is fine — set `APP_ENV=dev` to force standalone against `localhost:6379` regardless of cluster settings.
+
+### 3. Configure environment
+Copy the example file and fill in values:
+
+```sh
+cp .env.example .env
+# edit .env with your DATABASE_URL, REDIS_*, JWT, AWS, Twilio, etc.
+```
+
+See [.env.example](.env.example) for the full list of variables.
+
+### 4. Run the API
+```sh
+cargo run --bin api
+```
+
+The service listens on the port defined by `PORT` (default in [scripts](scripts/) is `8090`).
+
+## Roadmap / TODO
+
+- [ ] **Surge pricing implementation** — dynamic fare multiplier based on demand/supply in a given area.
+
 ## Get Involved
 Explore the code, provide feedback, and contribute to the project. Together, we can create a scalable, efficient, safe, and sustainable transportation network.
 
