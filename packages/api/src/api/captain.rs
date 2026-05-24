@@ -38,7 +38,7 @@ pub async fn set_driver_photo(
     Json(body): Json<InputData>,
 ) -> Result<StatusCode, AppError> {
     info!("body {:?}", body);
-    let _ = state
+    state
         .db
         .set_driver_photo_tx(
             DriverId(driver_id),
@@ -214,6 +214,14 @@ pub async fn set_driver_has_completed_onboarding(
         .db
         .set_has_onboarded(&driver_id, body.has_completed_onboarding)
         .await?;
+    Ok(StatusCode::OK)
+}
+
+pub async fn logout_driver(
+    Extension(ctx): Extension<Arc<APIContext>>,
+    Extension(driver_id): Extension<String>,
+) -> Result<StatusCode, AppError> {
+    ctx.db.logout_driver(&driver_id).await?;
     Ok(StatusCode::OK)
 }
 

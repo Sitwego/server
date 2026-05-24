@@ -18,7 +18,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{error, info};
+use tracing::error;
 
 use db_store::Database;
 use sea_orm::{
@@ -205,6 +205,11 @@ pub trait DriverQueries {
     ) -> impl std::future::Future<
         Output = utils::Result<Option<driver::Model>, AppError>,
     > + Send;
+
+    fn logout_driver(
+        &self,
+        driver_id: &str,
+    ) -> impl std::future::Future<Output = utils::Result<(), AppError>> + Send;
 }
 
 impl DriverQueries for Database {
@@ -245,6 +250,29 @@ impl DriverQueries for Database {
 
     async fn get_driver_rides(&self) -> utils::Result<()> {
         todo!()
+    }
+
+    async fn logout_driver(
+        &self,
+        driver_id: &str,
+    ) -> utils::Result<(), AppError> {
+        self.transaction(move |tx| {
+            let driver_id = driver_id.to_owned();
+            Box::pin(async move {
+                let _ = driver::ActiveModel {
+                    id: Set(driver_id),
+                    is_logged_in: Set(Some(false)),
+                    ..Default::default()
+                }
+                .update(&*tx)
+                .await
+                .map_err(utils::Error::Database)?;
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        Ok(())
     }
 
     async fn login_driver(
@@ -384,30 +412,29 @@ impl DriverQueries for Database {
         photo_nonce: &[u8],
         photo_encrypted_key: &[u8],
     ) -> utils::Result<()> {
-        let _ = self
-            .transaction(move |tx| {
-                let driver_id = driver_id.0.to_owned();
-                let photo_id = photo_id.to_owned();
-                let photo_nonce = photo_nonce.to_vec();
-                let photo_encrypted_key = photo_encrypted_key.to_vec();
+        self.transaction(move |tx| {
+            let driver_id = driver_id.0.to_owned();
+            let photo_id = photo_id.to_owned();
+            let photo_nonce = photo_nonce.to_vec();
+            let photo_encrypted_key = photo_encrypted_key.to_vec();
 
-                Box::pin(async move {
-                    let _ = driver::ActiveModel {
-                        id: Set(driver_id),
-                        photo_id: Set(Some(photo_id)),
-                        photo_nonce: Set(Some(photo_nonce)),
-                        // Store the KMS ciphertext blob so the photo can be
-                        // decrypted after a restart via kms:Decrypt.
-                        photo_encrypted_key: Set(Some(photo_encrypted_key)),
-                        ..Default::default()
-                    }
-                    .update(&*tx)
-                    .await
-                    .map_err(|err| utils::Error::Database(err))?;
-                    Ok(())
-                })
+            Box::pin(async move {
+                let _ = driver::ActiveModel {
+                    id: Set(driver_id),
+                    photo_id: Set(Some(photo_id)),
+                    photo_nonce: Set(Some(photo_nonce)),
+                    // Store the KMS ciphertext blob so the photo can be
+                    // decrypted after a restart via kms:Decrypt.
+                    photo_encrypted_key: Set(Some(photo_encrypted_key)),
+                    ..Default::default()
+                }
+                .update(&*tx)
+                .await
+                .map_err(utils::Error::Database)?;
+                Ok(())
             })
-            .await?;
+        })
+        .await?;
         Ok(())
     }
 
@@ -510,7 +537,7 @@ impl DriverQueries for Database {
             .await
             .map_err(|err| AppError::DatabaseError(err.to_string()))?;
 
-        let Some(mut driver_profile) = simple_profile else {
+        let Some(driver_profile) = simple_profile else {
             return Ok(None);
         };
 
@@ -565,23 +592,22 @@ impl DriverQueries for Database {
         driver_id: &str,
         has_onboarded: bool,
     ) -> utils::Result<(), AppError> {
-        let _ = self
-            .transaction(move |tx| {
-                let driver_id = driver_id.to_owned();
-                Box::pin(async move {
-                    let _ = driver::ActiveModel {
-                        id: Set(driver_id),
-                        has_onboarded: Set(Some(has_onboarded)),
-                        ..Default::default()
-                    }
-                    .update(&*tx)
-                    .await
-                    .map_err(|err| utils::Error::Database(err))?;
-                    Ok(())
-                })
+        self.transaction(move |tx| {
+            let driver_id = driver_id.to_owned();
+            Box::pin(async move {
+                let _ = driver::ActiveModel {
+                    id: Set(driver_id),
+                    has_onboarded: Set(Some(has_onboarded)),
+                    ..Default::default()
+                }
+                .update(&*tx)
+                .await
+                .map_err(utils::Error::Database)?;
+                Ok(())
             })
-            .await
-            .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        })
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
         Ok(())
     }
     async fn get_driver_categories(
@@ -766,23 +792,22 @@ impl DriverQueries for Database {
         driver_id: &str,
         activated: bool,
     ) -> utils::Result<(), AppError> {
-        let _ = self
-            .transaction(move |tx| {
-                let driver_id = driver_id.to_owned();
-                Box::pin(async move {
-                    let _ = driver::ActiveModel {
-                        id: Set(driver_id),
-                        activated: Set(Some(activated)),
-                        ..Default::default()
-                    }
-                    .update(&*tx)
-                    .await
-                    .map_err(|err| utils::Error::Database(err))?;
-                    Ok(())
-                })
+        self.transaction(move |tx| {
+            let driver_id = driver_id.to_owned();
+            Box::pin(async move {
+                let _ = driver::ActiveModel {
+                    id: Set(driver_id),
+                    activated: Set(Some(activated)),
+                    ..Default::default()
+                }
+                .update(&*tx)
+                .await
+                .map_err(utils::Error::Database)?;
+                Ok(())
             })
-            .await
-            .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        })
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
         Ok(())
     }
 }

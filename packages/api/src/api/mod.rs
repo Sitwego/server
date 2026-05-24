@@ -15,7 +15,7 @@ pub mod two_factor;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use nearby_drivers::get_nearby_drivers;
 use profile::{create_profile, update_device_info, update_personal_details};
@@ -30,6 +30,7 @@ use crate::api::driver::payment;
 pub fn handlers() -> Router {
     Router::new()
         .route("/create-driver", post(create_driver))
+        .route("/logout-driver", put(captain::logout_driver))
         .route(
             "/update-location-coordinates",
             post(update_location_coordinates),
