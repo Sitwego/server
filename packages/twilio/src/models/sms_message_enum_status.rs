@@ -11,8 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+///
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum SmsMessageEnumStatus {
     #[serde(rename = "queued")]
     Queued,
@@ -40,7 +51,6 @@ pub enum SmsMessageEnumStatus {
     PartiallyDelivered,
     #[serde(rename = "canceled")]
     Canceled,
-
 }
 
 impl std::fmt::Display for SmsMessageEnumStatus {
@@ -68,4 +78,3 @@ impl Default for SmsMessageEnumStatus {
         Self::Queued
     }
 }
-

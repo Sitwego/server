@@ -141,147 +141,140 @@ impl DriverRating for Database {
         &self,
         create_rate_data: CreateRateData,
     ) -> Result<(), AppError> {
-        let res = self
-            .transaction(move |tx| {
-                let driver_id = create_rate_data.driver_id.0.clone();
-                let ride_id = create_rate_data.ride_id.0.clone();
-                let customer_id = create_rate_data.customer_id.0.clone();
-                let text_feedback = create_rate_data.feedback_details.clone();
-                let attachment_id = create_rate_data.attachment_id.clone();
-                async move {
-                    // Step 1: insert the new rating row with all sub-scores
-                    driver_rating::ActiveModel {
-                        id: ActiveValue::Set(ulid_string()),
-                        ride_id: ActiveValue::Set(ride_id),
-                        driver_id: ActiveValue::Set(driver_id.clone()),
-                        customer_id: ActiveValue::Set(customer_id),
-                        rating_value: ActiveValue::Set(
-                            create_rate_data.rating_value,
-                        ),
-                        punctuality: ActiveValue::Set(
-                            create_rate_data.punctuality,
-                        ),
-                        driving_behavior: ActiveValue::Set(
-                            create_rate_data.driving_behavior,
-                        ),
-                        safety_compliance: ActiveValue::Set(
-                            create_rate_data.safety_compliance,
-                        ),
-                        vehicle_cleanliness: ActiveValue::Set(
-                            create_rate_data.vehicle_cleanliness,
-                        ),
-                        was_offered_assistance: ActiveValue::Set(
-                            create_rate_data.was_offered_assistance,
-                        ),
-                        feedback_details: ActiveValue::Set(text_feedback),
-                        attachment_id: ActiveValue::Set(attachment_id),
-                        ..Default::default()
-                    }
-                    .insert(&*tx)
-                    .await?;
-
-                    // Step 2: recompute composite aggregate for this driver
-                    // (includes the row just inserted)
-                    let maybe_stats = DriverCompositeStats::find_by_statement(
-                        Statement::from_sql_and_values(
-                            DbBackend::Postgres,
-                            COMPOSITE_STATS_SQL,
-                            [driver_id.clone().into()],
-                        ),
-                    )
-                    .one(&*tx)
-                    .await?;
-
-                    if let Some(stats) = maybe_stats {
-                        // Step 3: pull cancellation data from driver_stats
-                        let (rides_cancelled, total_rides_assigned) =
-                            driver_stats::Entity::find_by_id(driver_id.clone())
-                                .one(&*tx)
-                                .await?
-                                .map(|ds| {
-                                    (
-                                        ds.rides_cancelled.unwrap_or(0),
-                                        ds.total_rides_assigned.unwrap_or(0),
-                                    )
-                                })
-                                .unwrap_or((0, 0));
-
-                        // Step 4: compute the final recommendation score
-                        let total = stats.total_ratings as f64;
-                        let positive = stats.positive_count as f64;
-                        let assistance = stats.assistance_count as f64;
-
-                        let wilson = wilson_score(positive, total);
-
-                        // Penalty: high cancellation rate (capped at 25 %)
-                        let cancellation_penalty = if total_rides_assigned > 0 {
-                            (rides_cancelled as f64
-                                / total_rides_assigned as f64)
-                                .min(0.25)
-                        } else {
-                            0.0
-                        };
-
-                        // Bonus: drivers who consistently offer assistance
-                        // (up to +5 % on the final score)
-                        let assistance_bonus = if total > 0.0 {
-                            (assistance / total) * 0.05
-                        } else {
-                            0.0
-                        };
-
-                        let final_score = (wilson
-                            * (1.0 - cancellation_penalty)
-                            + assistance_bonus)
-                            .clamp(0.0, 1.0);
-
-                        // SQL already clamps each row to [1.0, 5.0] before
-                        // averaging; the Rust clamp is a defensive last resort.
-                        let avg_composite =
-                            stats.avg_composite_score.clamp(1.0, 5.0);
-
-                        // A rating is considered "valid" once there are
-                        // at least 5 data points
-                        let is_valid = total >= 5.0;
-
-                        // Step 5: persist back to driver_stats in the same
-                        // transaction — ride-matching queries read this column
-                        // directly without re-aggregating
-                        driver_stats::Entity::update_many()
-                            .col_expr(
-                                driver_stats::Column::Rating,
-                                Expr::val(
-                                    Decimal::try_from(final_score)
-                                        .unwrap_or_default(),
-                                )
-                                .into(),
-                            )
-                            .col_expr(
-                                driver_stats::Column::TotalRatings,
-                                Expr::val(stats.total_ratings as i32).into(),
-                            )
-                            .col_expr(
-                                driver_stats::Column::TotalRatingScore,
-                                Expr::val(avg_composite).into(),
-                            )
-                            .col_expr(
-                                driver_stats::Column::IsValidRating,
-                                Expr::val(is_valid).into(),
-                            )
-                            .filter(
-                                driver_stats::Column::DriverId.eq(driver_id),
-                            )
-                            .exec(&*tx)
-                            .await?;
-                    }
-
-                    Ok(())
+        self.transaction(move |tx| {
+            let driver_id = create_rate_data.driver_id.0.clone();
+            let ride_id = create_rate_data.ride_id.0.clone();
+            let customer_id = create_rate_data.customer_id.0.clone();
+            let text_feedback = create_rate_data.feedback_details.clone();
+            let attachment_id = create_rate_data.attachment_id.clone();
+            async move {
+                // Step 1: insert the new rating row with all sub-scores
+                driver_rating::ActiveModel {
+                    id: ActiveValue::Set(ulid_string()),
+                    ride_id: ActiveValue::Set(ride_id),
+                    driver_id: ActiveValue::Set(driver_id.clone()),
+                    customer_id: ActiveValue::Set(customer_id),
+                    rating_value: ActiveValue::Set(
+                        create_rate_data.rating_value,
+                    ),
+                    punctuality: ActiveValue::Set(create_rate_data.punctuality),
+                    driving_behavior: ActiveValue::Set(
+                        create_rate_data.driving_behavior,
+                    ),
+                    safety_compliance: ActiveValue::Set(
+                        create_rate_data.safety_compliance,
+                    ),
+                    vehicle_cleanliness: ActiveValue::Set(
+                        create_rate_data.vehicle_cleanliness,
+                    ),
+                    was_offered_assistance: ActiveValue::Set(
+                        create_rate_data.was_offered_assistance,
+                    ),
+                    feedback_details: ActiveValue::Set(text_feedback),
+                    attachment_id: ActiveValue::Set(attachment_id),
+                    ..Default::default()
                 }
-            })
-            .await
-            .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+                .insert(&*tx)
+                .await?;
 
-        Ok(res)
+                // Step 2: recompute composite aggregate for this driver
+                // (includes the row just inserted)
+                let maybe_stats = DriverCompositeStats::find_by_statement(
+                    Statement::from_sql_and_values(
+                        DbBackend::Postgres,
+                        COMPOSITE_STATS_SQL,
+                        [driver_id.clone().into()],
+                    ),
+                )
+                .one(&*tx)
+                .await?;
+
+                if let Some(stats) = maybe_stats {
+                    // Step 3: pull cancellation data from driver_stats
+                    let (rides_cancelled, total_rides_assigned) =
+                        driver_stats::Entity::find_by_id(driver_id.clone())
+                            .one(&*tx)
+                            .await?
+                            .map(|ds| {
+                                (
+                                    ds.rides_cancelled.unwrap_or(0),
+                                    ds.total_rides_assigned.unwrap_or(0),
+                                )
+                            })
+                            .unwrap_or((0, 0));
+
+                    // Step 4: compute the final recommendation score
+                    let total = stats.total_ratings as f64;
+                    let positive = stats.positive_count as f64;
+                    let assistance = stats.assistance_count as f64;
+
+                    let wilson = wilson_score(positive, total);
+
+                    // Penalty: high cancellation rate (capped at 25 %)
+                    let cancellation_penalty = if total_rides_assigned > 0 {
+                        (rides_cancelled as f64 / total_rides_assigned as f64)
+                            .min(0.25)
+                    } else {
+                        0.0
+                    };
+
+                    // Bonus: drivers who consistently offer assistance
+                    // (up to +5 % on the final score)
+                    let assistance_bonus = if total > 0.0 {
+                        (assistance / total) * 0.05
+                    } else {
+                        0.0
+                    };
+
+                    let final_score = (wilson * (1.0 - cancellation_penalty)
+                        + assistance_bonus)
+                        .clamp(0.0, 1.0);
+
+                    // SQL already clamps each row to [1.0, 5.0] before
+                    // averaging; the Rust clamp is a defensive last resort.
+                    let avg_composite =
+                        stats.avg_composite_score.clamp(1.0, 5.0);
+
+                    // A rating is considered "valid" once there are
+                    // at least 5 data points
+                    let is_valid = total >= 5.0;
+
+                    // Step 5: persist back to driver_stats in the same
+                    // transaction — ride-matching queries read this column
+                    // directly without re-aggregating
+                    driver_stats::Entity::update_many()
+                        .col_expr(
+                            driver_stats::Column::Rating,
+                            Expr::val(
+                                Decimal::try_from(final_score)
+                                    .unwrap_or_default(),
+                            )
+                            .into(),
+                        )
+                        .col_expr(
+                            driver_stats::Column::TotalRatings,
+                            Expr::val(stats.total_ratings as i32).into(),
+                        )
+                        .col_expr(
+                            driver_stats::Column::TotalRatingScore,
+                            Expr::val(avg_composite).into(),
+                        )
+                        .col_expr(
+                            driver_stats::Column::IsValidRating,
+                            Expr::val(is_valid).into(),
+                        )
+                        .filter(driver_stats::Column::DriverId.eq(driver_id))
+                        .exec(&*tx)
+                        .await?;
+                }
+
+                Ok(())
+            }
+        })
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+
+        Ok(())
     }
 
     async fn get_driver_recommendation_score(
@@ -343,6 +336,7 @@ impl DriverRating for Database {
 /// Weights: overall 40% | punctuality 20% | driving_behavior 20% | safety 10% | cleanliness 10%
 /// Sub-scores fall back to rating_value when NULL so sparse rows are never penalised.
 /// Result is clamped to [1, 5] then rounded to the nearest integer star bucket.
+#[allow(dead_code)]
 const COMPOSITE_STAR_EXPR: &str = "
     ROUND(
         LEAST(5.0, GREATEST(1.0,
@@ -710,7 +704,7 @@ impl RiderRating for Database {
                     let is_valid = total >= 5.0;
 
                     // Step 3: upsert rider_stats with the new aggregates
-                    (&*tx)
+                    (*tx)
                         .execute(Statement::from_sql_and_values(
                             DbBackend::Postgres,
                             RIDER_STATS_UPSERT_SQL,

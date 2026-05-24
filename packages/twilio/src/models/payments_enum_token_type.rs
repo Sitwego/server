@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// PaymentsEnumTokenType : Indicates whether the payment method should be tokenized as a `one-time`, `reusable`, or `payment-method` token. The default value is `reusable`. Do not enter a charge amount when tokenizing. If a charge amount is entered, the payment method will be charged and not tokenized.
 /// Indicates whether the payment method should be tokenized as a `one-time`, `reusable`, or `payment-method` token. The default value is `reusable`. Do not enter a charge amount when tokenizing. If a charge amount is entered, the payment method will be charged and not tokenized.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum PaymentsEnumTokenType {
     #[serde(rename = "one-time")]
     OneTime,
@@ -21,7 +32,6 @@ pub enum PaymentsEnumTokenType {
     Reusable,
     #[serde(rename = "payment-method")]
     PaymentMethod,
-
 }
 
 impl std::fmt::Display for PaymentsEnumTokenType {
@@ -39,4 +49,3 @@ impl Default for PaymentsEnumTokenType {
         Self::OneTime
     }
 }
-

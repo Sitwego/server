@@ -14,67 +14,172 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ApiV2010AccountApplication {
     /// The SID of the [Account](https://www.twilio.com/docs/iam/api/account) that created the Application resource.
-    #[serde(rename = "account_sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "account_sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub account_sid: Option<Option<String>>,
     /// The API version used to start a new TwiML session.
-    #[serde(rename = "api_version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "api_version",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub api_version: Option<Option<String>>,
     /// The date and time in GMT that the resource was created specified in [RFC 2822](https://www.ietf.org/rfc/rfc2822.txt) format.
-    #[serde(rename = "date_created", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "date_created",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub date_created: Option<Option<String>>,
     /// The date and time in GMT that the resource was last updated specified in [RFC 2822](https://www.ietf.org/rfc/rfc2822.txt) format.
-    #[serde(rename = "date_updated", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "date_updated",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub date_updated: Option<Option<String>>,
     /// The string that you assigned to describe the resource.
-    #[serde(rename = "friendly_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "friendly_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub friendly_name: Option<Option<String>>,
     /// The URL we call using a POST method to send message status information to your application.
-    #[serde(rename = "message_status_callback", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "message_status_callback",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub message_status_callback: Option<Option<String>>,
     /// The unique string that that we created to identify the Application resource.
-    #[serde(rename = "sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sid: Option<Option<String>>,
     /// The HTTP method we use to call `sms_fallback_url`. Can be: `GET` or `POST`.
-    #[serde(rename = "sms_fallback_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sms_fallback_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sms_fallback_method: Option<Option<SmsFallbackMethod>>,
     /// The URL that we call when an error occurs while retrieving or executing the TwiML from `sms_url`.
-    #[serde(rename = "sms_fallback_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sms_fallback_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sms_fallback_url: Option<Option<String>>,
     /// The HTTP method we use to call `sms_url`. Can be: `GET` or `POST`.
-    #[serde(rename = "sms_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sms_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sms_method: Option<Option<SmsMethod>>,
     /// The URL we call using a POST method to send status information to your application about SMS messages that refer to the application.
-    #[serde(rename = "sms_status_callback", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sms_status_callback",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sms_status_callback: Option<Option<String>>,
     /// The URL we call when the phone number receives an incoming SMS message.
-    #[serde(rename = "sms_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sms_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sms_url: Option<Option<String>>,
     /// The URL we call using the `status_callback_method` to send status information to your application.
-    #[serde(rename = "status_callback", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "status_callback",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub status_callback: Option<Option<String>>,
     /// The HTTP method we use to call `status_callback`. Can be: `GET` or `POST`.
-    #[serde(rename = "status_callback_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "status_callback_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub status_callback_method: Option<Option<StatusCallbackMethod>>,
     /// The URI of the resource, relative to `https://api.twilio.com`.
-    #[serde(rename = "uri", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "uri",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub uri: Option<Option<String>>,
     /// Whether we look up the caller's caller-ID name from the CNAM database (additional charges apply). Can be: `true` or `false`.
-    #[serde(rename = "voice_caller_id_lookup", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_caller_id_lookup",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_caller_id_lookup: Option<Option<bool>>,
     /// The HTTP method we use to call `voice_fallback_url`. Can be: `GET` or `POST`.
-    #[serde(rename = "voice_fallback_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_fallback_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_fallback_method: Option<Option<VoiceFallbackMethod>>,
     /// The URL that we call when an error occurs retrieving or executing the TwiML requested by `url`.
-    #[serde(rename = "voice_fallback_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_fallback_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_fallback_url: Option<Option<String>>,
     /// The HTTP method we use to call `voice_url`. Can be: `GET` or `POST`.
-    #[serde(rename = "voice_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_method: Option<Option<VoiceMethod>>,
     /// The URL we call when the phone number assigned to this application receives a call.
-    #[serde(rename = "voice_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_url: Option<Option<String>>,
     /// Whether to allow other Twilio accounts to dial this applicaton using Dial verb. Can be: `true` or `false`.
-    #[serde(rename = "public_application_connect_enabled", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "public_application_connect_enabled",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub public_application_connect_enabled: Option<Option<bool>>,
 }
 
@@ -106,7 +211,18 @@ impl ApiV2010AccountApplication {
     }
 }
 /// The HTTP method we use to call `sms_fallback_url`. Can be: `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum SmsFallbackMethod {
     #[serde(rename = "GET")]
     Get,
@@ -120,7 +236,18 @@ impl Default for SmsFallbackMethod {
     }
 }
 /// The HTTP method we use to call `sms_url`. Can be: `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum SmsMethod {
     #[serde(rename = "GET")]
     Get,
@@ -134,7 +261,18 @@ impl Default for SmsMethod {
     }
 }
 /// The HTTP method we use to call `status_callback`. Can be: `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum StatusCallbackMethod {
     #[serde(rename = "GET")]
     Get,
@@ -148,7 +286,18 @@ impl Default for StatusCallbackMethod {
     }
 }
 /// The HTTP method we use to call `voice_fallback_url`. Can be: `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum VoiceFallbackMethod {
     #[serde(rename = "GET")]
     Get,
@@ -162,7 +311,18 @@ impl Default for VoiceFallbackMethod {
     }
 }
 /// The HTTP method we use to call `voice_url`. Can be: `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum VoiceMethod {
     #[serde(rename = "GET")]
     Get,
@@ -175,4 +335,3 @@ impl Default for VoiceMethod {
         Self::Get
     }
 }
-

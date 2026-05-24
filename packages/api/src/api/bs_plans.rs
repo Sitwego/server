@@ -101,8 +101,7 @@ pub async fn get_bs_subscription(
 pub async fn test_get_bs_plans(
     Extension(ctx): Extension<Arc<APIContext>>,
 ) -> Result<StatusCode, AppError> {
-    let _ = ctx
-        .db
+    ctx.db
         .update_due_amount()
         .await
         .map_err(|err| AppError::InternalError(err.to_string()))?;

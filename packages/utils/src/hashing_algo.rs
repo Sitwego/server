@@ -100,12 +100,12 @@ async fn generate_envelope_key(
             CryptoError::KmsError(format!("Failed to generate data key: {}", e))
         })?;
 
-    let plaintext = response
-        .plaintext
-        .ok_or_else(|| CryptoError::KmsError("No plaintext key from KMS".into()))?;
-    let blob = response
-        .ciphertext_blob
-        .ok_or_else(|| CryptoError::KmsError("No ciphertext blob from KMS".into()))?;
+    let plaintext = response.plaintext.ok_or_else(|| {
+        CryptoError::KmsError("No plaintext key from KMS".into())
+    })?;
+    let blob = response.ciphertext_blob.ok_or_else(|| {
+        CryptoError::KmsError("No ciphertext blob from KMS".into())
+    })?;
 
     let plaintext = plaintext.as_ref();
     if plaintext.len() != KEY_LENGTH {
@@ -154,9 +154,9 @@ async fn decrypt_envelope_key(
             CryptoError::KmsError(format!("Failed to decrypt data key: {}", e))
         })?;
 
-    let plaintext = response
-        .plaintext
-        .ok_or_else(|| CryptoError::KmsError("No plaintext from KMS decrypt".into()))?;
+    let plaintext = response.plaintext.ok_or_else(|| {
+        CryptoError::KmsError("No plaintext from KMS decrypt".into())
+    })?;
 
     let plaintext = plaintext.as_ref();
     if plaintext.len() != KEY_LENGTH {
@@ -187,7 +187,10 @@ pub async fn encrypt_data(
 
     let cipher = ChaCha20Poly1305::new_from_slice(&key)
         .map_err(|e| CryptoError::CipherError(e.to_string()))?;
-    let payload = Payload { msg: sensitive_data, aad: AAD };
+    let payload = Payload {
+        msg: sensitive_data,
+        aad: AAD,
+    };
     let ciphertext = cipher
         .encrypt(&nonce.into(), payload)
         .map_err(|e| CryptoError::CipherError(e.to_string()))?;
@@ -205,9 +208,8 @@ pub async fn decrypt_data<'a>(
 ) -> Result<Vec<u8>, CryptoError> {
     let key = decrypt_envelope_key(record.encrypted_key).await?;
 
-    let cipher = ChaCha20Poly1305::new_from_slice(&key).map_err(|e| {
-        CryptoError::CipherError(e.to_string())
-    })?;
+    let cipher = ChaCha20Poly1305::new_from_slice(&key)
+        .map_err(|e| CryptoError::CipherError(e.to_string()))?;
 
     if record.nonce.len() != 12 {
         return Err(CryptoError::CipherError(format!(
@@ -218,7 +220,10 @@ pub async fn decrypt_data<'a>(
     let mut nonce = [0u8; 12];
     nonce.copy_from_slice(record.nonce);
 
-    let payload = Payload { msg: record.ciphertext, aad: AAD };
+    let payload = Payload {
+        msg: record.ciphertext,
+        aad: AAD,
+    };
     let buf = cipher
         .decrypt((&nonce).into(), payload)
         .map_err(|e| CryptoError::CipherError(e.to_string()))?;
@@ -245,9 +250,8 @@ pub async fn extract_contact_info(
 pub fn deserialize_data_from_slice(
     buff: &[u8],
 ) -> Result<SensitiveData, CryptoError> {
-    let data = serde_json::from_slice(buff).map_err(|e| {
-        CryptoError::SerializationError(e)
-    })?;
+    let data = serde_json::from_slice(buff)
+        .map_err(CryptoError::SerializationError)?;
     Ok(data)
 }
 

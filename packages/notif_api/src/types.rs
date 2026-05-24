@@ -62,7 +62,7 @@ pub struct PushRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
     #[test]
     fn platform_ios_serializes_to_1() {

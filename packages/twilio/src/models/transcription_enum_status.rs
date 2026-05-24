@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// TranscriptionEnumStatus : The status of the transcription. Can be: `in-progress`, `completed`, `failed`.
 /// The status of the transcription. Can be: `in-progress`, `completed`, `failed`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum TranscriptionEnumStatus {
     #[serde(rename = "in-progress")]
     InProgress,
@@ -21,7 +32,6 @@ pub enum TranscriptionEnumStatus {
     Completed,
     #[serde(rename = "failed")]
     Failed,
-
 }
 
 impl std::fmt::Display for TranscriptionEnumStatus {
@@ -39,4 +49,3 @@ impl Default for TranscriptionEnumStatus {
         Self::InProgress
     }
 }
-

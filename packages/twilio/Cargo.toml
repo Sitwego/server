@@ -18,3 +18,8 @@ reqwest = { version = "^0.13", default-features = false, features = ["json", "mu
 default = ["native-tls"]
 native-tls = ["reqwest/native-tls"]
 rustls = ["reqwest/rustls"]
+
+# Generated code — silence clippy. Real rustc warnings stay on.
+[lints.clippy]
+all = { level = "allow", priority = -1 }
+pedantic = { level = "allow", priority = -1 }

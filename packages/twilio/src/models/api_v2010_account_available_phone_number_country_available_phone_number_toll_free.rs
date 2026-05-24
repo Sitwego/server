@@ -54,7 +54,9 @@ pub struct ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberTollFre
 }
 
 impl ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberTollFree {
-    pub fn new() -> ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberTollFree {
+    pub fn new(
+    ) -> ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberTollFree
+    {
         ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberTollFree {
             friendly_name: None,
             phone_number: None,
@@ -72,4 +74,3 @@ impl ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberTollFree {
         }
     }
 }
-

@@ -49,8 +49,7 @@ pub async fn go_online(
         "Driver {} going online with vehicle category {:?}",
         driver_id, vehicle_category
     );
-    let _ = ctx
-        .driver_pool_manager
+    ctx.driver_pool_manager
         .add_driver(&driver_id, stats.score)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -111,10 +110,10 @@ pub async fn confirm_collected_cash(
 
         Ok(Response::OK(0))
     } else {
-        return Err(AppError::NotFound(format!(
+        Err(AppError::NotFound(format!(
             "Ride for ride id {:?} not found",
             ride_id.inner()
-        )));
+        )))
     }
 }
 

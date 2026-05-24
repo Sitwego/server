@@ -35,4 +35,3 @@ impl ApiV2010AccountIncomingPhoneNumberCapabilities {
         }
     }
 }
-

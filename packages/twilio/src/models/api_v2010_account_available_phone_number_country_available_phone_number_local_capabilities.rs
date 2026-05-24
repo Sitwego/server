@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 
 /// ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberLocalCapabilities : The set of Boolean properties that indicate whether a phone number can receive calls or messages.  Capabilities are: `Voice`, `SMS`, and `MMS` and each capability can be: `true` or `false`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberLocalCapabilities {
+pub struct ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberLocalCapabilities
+{
     #[serde(rename = "mms", skip_serializing_if = "Option::is_none")]
     pub mms: Option<bool>,
     #[serde(rename = "sms", skip_serializing_if = "Option::is_none")]
@@ -35,4 +36,3 @@ impl ApiV2010AccountAvailablePhoneNumberCountryAvailablePhoneNumberLocalCapabili
         }
     }
 }
-

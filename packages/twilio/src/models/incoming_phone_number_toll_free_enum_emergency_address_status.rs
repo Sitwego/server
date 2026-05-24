@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// IncomingPhoneNumberTollFreeEnumEmergencyAddressStatus : The status of address registration with emergency services. A registered emergency address will be used during handling of emergency calls from this number.
 /// The status of address registration with emergency services. A registered emergency address will be used during handling of emergency calls from this number.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum IncomingPhoneNumberTollFreeEnumEmergencyAddressStatus {
     #[serde(rename = "registered")]
     Registered,
@@ -27,10 +38,11 @@ pub enum IncomingPhoneNumberTollFreeEnumEmergencyAddressStatus {
     PendingUnregistration,
     #[serde(rename = "unregistration-failure")]
     UnregistrationFailure,
-
 }
 
-impl std::fmt::Display for IncomingPhoneNumberTollFreeEnumEmergencyAddressStatus {
+impl std::fmt::Display
+    for IncomingPhoneNumberTollFreeEnumEmergencyAddressStatus
+{
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Registered => write!(f, "registered"),
@@ -48,4 +60,3 @@ impl Default for IncomingPhoneNumberTollFreeEnumEmergencyAddressStatus {
         Self::Registered
     }
 }
-

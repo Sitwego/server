@@ -14,8 +14,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ListAvailablePhoneNumberCountryResponse {
     #[serde(rename = "countries", skip_serializing_if = "Option::is_none")]
-    pub countries: Option<Vec<models::ApiV2010AccountAvailablePhoneNumberCountry>>,
-    #[serde(rename = "uri", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    pub countries:
+        Option<Vec<models::ApiV2010AccountAvailablePhoneNumberCountry>>,
+    #[serde(
+        rename = "uri",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub uri: Option<Option<String>>,
 }
 
@@ -27,4 +33,3 @@ impl ListAvailablePhoneNumberCountryResponse {
         }
     }
 }
-

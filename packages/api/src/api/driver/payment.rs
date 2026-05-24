@@ -246,11 +246,11 @@ pub async fn confirm_payment(
         .await
         .map_err(|err| AppError::DatabaseError(err.to_string()))?;
     if let Some(payment) = resp {
-        return Ok(Response::OK(PaymentResponse {
+        Ok(Response::OK(PaymentResponse {
             id: Some(payment.id),
-        }));
+        }))
     } else {
-        return Ok(Response::OK(PaymentResponse { id: None }));
+        Ok(Response::OK(PaymentResponse { id: None }))
     }
 }
 

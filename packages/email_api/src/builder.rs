@@ -35,7 +35,11 @@ impl EmailBuilder {
         self
     }
 
-    pub fn to_many(mut self, addresses: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    #[allow(clippy::wrong_self_convention)]
+    pub fn to_many(
+        mut self,
+        addresses: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         self.to.extend(addresses.into_iter().map(Into::into));
         self
     }

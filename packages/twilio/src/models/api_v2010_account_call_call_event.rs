@@ -14,10 +14,20 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ApiV2010AccountCallCallEvent {
     /// Contains a dictionary representing the request of the call.
-    #[serde(rename = "request", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "request",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub request: Option<Option<serde_json::Value>>,
     /// Contains a dictionary representing the call response, including a list of the call events.
-    #[serde(rename = "response", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "response",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub response: Option<Option<serde_json::Value>>,
 }
 
@@ -29,4 +39,3 @@ impl ApiV2010AccountCallCallEvent {
         }
     }
 }
-

@@ -74,19 +74,20 @@ impl GorushClient {
             });
         }
 
-        let resp = serde_json::from_slice::<GorushResponse>(&raw).map_err(|e| {
-            tracing::warn!(
-                body = %String::from_utf8_lossy(&raw),
-                error = %e,
-                "gorush returned non-JSON body"
-            );
-            e
-        })?;
+        let resp =
+            serde_json::from_slice::<GorushResponse>(&raw).map_err(|e| {
+                tracing::warn!(
+                    body = %String::from_utf8_lossy(&raw),
+                    error = %e,
+                    "gorush returned non-JSON body"
+                );
+                e
+            })?;
 
-        if let Some(ref success) = resp.success {
-            if success != "ok" {
-                return Err(GorushError::Push(success.clone()));
-            }
+        if let Some(ref success) = resp.success
+            && success != "ok"
+        {
+            return Err(GorushError::Push(success.clone()));
         }
 
         Ok(resp)
@@ -126,10 +127,9 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/push"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({ "counts": 1, "success": "ok", "logs": [] })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "counts": 1, "success": "ok", "logs": [] }),
+            ))
             .expect(1)
             .mount(&server)
             .await;
@@ -147,10 +147,9 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/push"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({ "counts": 2, "success": "ok", "logs": [] })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "counts": 2, "success": "ok", "logs": [] }),
+            ))
             .expect(1) // one request containing two notifications
             .mount(&server)
             .await;
@@ -170,10 +169,9 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/push"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({ "counts": 1, "success": "ok", "logs": [] })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "counts": 1, "success": "ok", "logs": [] }),
+            ))
             .mount(&server)
             .await;
 
@@ -196,10 +194,16 @@ mod tests {
         assert_eq!(notif["data"]["ride_id"], "r_123");
         assert_eq!(notif["priority"], "high");
         assert_eq!(notif["content_available"], true);
-        assert_eq!(notif["android"]["notification"]["channel_id"], "driver-arrival");
+        assert_eq!(
+            notif["android"]["notification"]["channel_id"],
+            "driver-arrival"
+        );
         assert_eq!(notif["android"]["notification"]["color"], "#4CAF50");
         assert_eq!(notif["android"]["notification"]["tag"], "arrival-r_123");
-        assert_eq!(notif["android"]["notification"]["click_action"], "OPEN_RIDE_TRACKING");
+        assert_eq!(
+            notif["android"]["notification"]["click_action"],
+            "OPEN_RIDE_TRACKING"
+        );
     }
 
     #[tokio::test]
@@ -208,10 +212,9 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/push"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({ "counts": 0, "success": "failed", "logs": [] })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({ "counts": 0, "success": "failed", "logs": [] }),
+            ))
             .mount(&server)
             .await;
 

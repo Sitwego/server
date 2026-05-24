@@ -1,6 +1,8 @@
 use crate::r_types::*;
 use fred::{
-    interfaces::{GeoInterface, HashesInterface, KeysInterface, StreamsInterface},
+    interfaces::{
+        GeoInterface, HashesInterface, KeysInterface, StreamsInterface,
+    },
     prelude::{ListInterface, LuaInterface, SortedSetsInterface},
     types::{
         Expiration, Key as RedisKey, MultipleKeys, SetOptions, SortOrder,
@@ -78,11 +80,10 @@ impl RedisConnectionPool {
             .map_err(|e| RedisError::RedisDefaultError(e.to_string()))?;
 
         if count == 1 {
-            let _: () = self
-                .pool
-                .expire(key, window_secs, None)
-                .await
-                .map_err(|e| RedisError::RedisDefaultError(e.to_string()))?;
+            let _: () =
+                self.pool.expire(key, window_secs, None).await.map_err(
+                    |e| RedisError::RedisDefaultError(e.to_string()),
+                )?;
         }
 
         Ok(count)
@@ -396,7 +397,7 @@ impl RedisConnectionPool {
                 false,
             )
             .await
-            .map_err(|e| RedisError::SetnxFailed(e))?;
+            .map_err(RedisError::SetnxFailed)?;
         Ok(!matches!(result, RedisValue::Null))
     }
 
@@ -569,11 +570,10 @@ impl RedisConnectionPool {
     /// Returns all field names stored in a Redis hash.
     /// Used to retrieve a driver's opted-in optional categories.
     pub async fn hkeys(&self, key: &str) -> Result<Vec<String>, RedisError> {
-        let output = self
-            .pool
-            .hkeys::<RedisValue, _>(key)
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(err.to_string()))?;
+        let output =
+            self.pool.hkeys::<RedisValue, _>(key).await.map_err(|err| {
+                RedisError::RedisDefaultError(err.to_string())
+            })?;
         match output {
             RedisValue::Array(vals) => Ok(vals
                 .into_iter()
@@ -586,7 +586,7 @@ impl RedisConnectionPool {
             _ => Ok(vec![]),
         }
     }
-    
+
     /// Appends one or multiple values to the end of a list in the Redis store.
     ///
     /// This asynchronous function receives a key representing a list and a vector of values to be appended to the list.
@@ -1268,34 +1268,29 @@ impl RedisConnectionPool {
                             .into_iter()
                             .filter_map(|entry| {
                                 // Handle each entry in the top-level array
-                                if let RedisValue::Array(inner_array) = entry {
-                                    if let [
+                                if let RedisValue::Array(inner_array) = entry
+                                    && let [
                                         RedisValue::String(member),
                                         RedisValue::String(distance),
                                         RedisValue::Array(position),
                                     ] = &inner_array[..]
-                                    {
-                                        if let [
-                                            RedisValue::String(lon),
-                                            RedisValue::String(lat),
-                                        ] = &position[..]
-                                        {
-                                            let distance: f64 =
-                                                distance.parse().ok()?;
-                                            let latitude: f64 =
-                                                lat.parse().ok()?;
-                                            let longitude: f64 =
-                                                lon.parse().ok()?;
-                                            return Some((
-                                                member.to_string(),
-                                                GeoPoint {
-                                                    lat: Latitude(latitude),
-                                                    lon: Longitude(longitude),
-                                                },
-                                                distance,
-                                            ));
-                                        }
-                                    }
+                                    && let [
+                                        RedisValue::String(lon),
+                                        RedisValue::String(lat),
+                                    ] = &position[..]
+                                {
+                                    let distance: f64 =
+                                        distance.parse().ok()?;
+                                    let latitude: f64 = lat.parse().ok()?;
+                                    let longitude: f64 = lon.parse().ok()?;
+                                    return Some((
+                                        member.to_string(),
+                                        GeoPoint {
+                                            lat: Latitude(latitude),
+                                            lon: Longitude(longitude),
+                                        },
+                                        distance,
+                                    ));
                                 }
                                 None // Return None for non-matching structures
                             })
@@ -1338,12 +1333,12 @@ impl RedisConnectionPool {
                         && points[0].is_double()
                         && points[1].is_double()
                     {
-                        return Ok(vec![GeoPoint {
+                        Ok(vec![GeoPoint {
                             lat: Latitude(points[1].as_f64().unwrap()),
                             lon: Longitude(points[0].as_f64().unwrap()),
-                        }]);
+                        }])
                     } else {
-                        return Ok(vec![]);
+                        Ok(vec![])
                     }
                 } else {
                     Ok(vec![])
@@ -1384,12 +1379,12 @@ impl RedisConnectionPool {
         start: i64,
         stop: i64,
     ) -> Result<(), RedisError> {
-        self.pool
-            .zremrangebyrank(key, start, stop)
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZRemRangeByRank Failed: {:?}", err),
+        self.pool.zremrangebyrank(key, start, stop).await.map_err(|err| {
+            RedisError::RedisDefaultError(format!(
+                "ZRemRangeByRank Failed: {:?}",
+                err
             ))
+        })
     }
 
     /// Asynchronously removes all members in a sorted set within the specified score range.
@@ -1420,12 +1415,12 @@ impl RedisConnectionPool {
         min: f64,
         max: f64,
     ) -> Result<(), RedisError> {
-        self.pool
-            .zremrangebyscore(key, min, max)
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZRemRangeByScore Failed: {:?}", err),
+        self.pool.zremrangebyscore(key, min, max).await.map_err(|err| {
+            RedisError::RedisDefaultError(format!(
+                "ZRemRangeByScore Failed: {:?}",
+                err
             ))
+        })
     }
 
     /// Asynchronously adds one or multiple members to a sorted set, or updates its score if it already exists.
@@ -1465,9 +1460,9 @@ impl RedisConnectionPool {
         self.pool
             .zadd(key, options, ordering, changed, incr, values)
             .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZAdd Failed: {:?}", err),
-            ))
+            .map_err(|err| {
+                RedisError::RedisDefaultError(format!("ZAdd Failed: {:?}", err))
+            })
     }
 
     /// Asynchronously retrieves the number of elements in a sorted set stored at the specified key.
@@ -1492,12 +1487,9 @@ impl RedisConnectionPool {
     /// println!("Number of members in sorted set: {}", count);
     /// ```
     pub async fn zcard(&self, key: &str) -> Result<u64, RedisError> {
-        self.pool
-            .zcard(key)
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZCard Failed: {:?}", err),
-            ))
+        self.pool.zcard(key).await.map_err(|err| {
+            RedisError::RedisDefaultError(format!("ZCard Failed: {:?}", err))
+        })
     }
 
     /// Asynchronously removes and returns one or multiple elements with the highest scores from a sorted set in Redis.
@@ -1526,8 +1518,6 @@ impl RedisConnectionPool {
     /// }
     /// ```
     /// Note: This function will return an empty vector if the sorted set is empty or the key does not exist.
-    /// 
-
     pub async fn zpopmax<T>(
         &self,
         key: &str,
@@ -1536,13 +1526,9 @@ impl RedisConnectionPool {
     where
         T: DeserializeOwned,
     {
-        let output = self
-            .pool
-            .zpopmax(key, count)
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZPopMax Failed: {:?}", err),
-            ))?;
+        let output = self.pool.zpopmax(key, count).await.map_err(|err| {
+            RedisError::RedisDefaultError(format!("ZPopMax Failed: {:?}", err))
+        })?;
 
         match output {
             RedisValue::Array(val) => {
@@ -1550,7 +1536,9 @@ impl RedisConnectionPool {
                     .into_iter()
                     .map(|v| match v {
                         RedisValue::String(s) => serde_json::from_str::<T>(&s)
-                            .map_err(|err| RedisError::SerializationError(err.to_string())),
+                            .map_err(|err| {
+                                RedisError::SerializationError(err.to_string())
+                            }),
                         case => Err(RedisError::RedisDefaultError(format!(
                             "Unexpected RedisValue encountered : {:?}",
                             case
@@ -1588,21 +1576,19 @@ impl RedisConnectionPool {
     /// let new_score = zincrby("sample_key", 2.5, "member1").await?;
     /// println!("New score of member1: {}", new_score);
     /// ```
-    /// 
-
     pub async fn zincrby(
         &self,
         key: &str,
         increment: f64,
         member: &str,
     ) -> Result<f64, RedisError> {
-        let output = self
-            .pool
-            .zincrby(key, increment, member)
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZIncrBy Failed: {:?}", err),
-            ))?;
+        let output =
+            self.pool.zincrby(key, increment, member).await.map_err(|err| {
+                RedisError::RedisDefaultError(format!(
+                    "ZIncrBy Failed: {:?}",
+                    err
+                ))
+            })?;
 
         match output {
             RedisValue::Double(val) => Ok(val),
@@ -1622,30 +1608,32 @@ impl RedisConnectionPool {
     /// * `key` - The key of the Redis sorted set.
     /// * `decrement` - The value by which to decrement the member's score.
     /// * `member` - The member whose score is to be decremented.
-    /// # Returns 
+    /// # Returns
     /// * `f64`: The new score of the member after the decrement.
     /// * `RedisError`: An error variant indicating a problem interfacing with Redis or unexpected
-    /// data format.
+    ///   data format.
     /// # Examples
     /// ```rust
     /// // Omitted setup and initialization code
     /// let new_score = zdecrby("sample_key", 1.5, "member1").await?;
     /// println!("New score of member1: {}", new_score);
     /// ```
-    /// 
+    ///
     pub async fn zdecrby(
         &self,
         key: &str,
         decrement: f64,
         member: &str,
     ) -> Result<f64, RedisError> {
-        let output = self
-            .pool
-            .zincrby(key, -decrement.abs(), member)
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZDecrBy Failed: {:?}", err),
-            ))?;
+        let output =
+            self.pool.zincrby(key, -decrement.abs(), member).await.map_err(
+                |err| {
+                    RedisError::RedisDefaultError(format!(
+                        "ZDecrBy Failed: {:?}",
+                        err
+                    ))
+                },
+            )?;
 
         match output {
             RedisValue::Double(val) => Ok(val),
@@ -1667,27 +1655,25 @@ impl RedisConnectionPool {
     /// # Returns
     /// * `f64`: The score of the specified member.
     /// * `RedisError`: An error variant indicating a problem interfacing with Redis or unexpected
-    /// data format.
+    ///   data format.
     /// # Examples
     /// ```rust
     /// // Omitted setup and initialization code
     /// let score = zscore("sample_key", &["member1".to_string()]).await?;
     /// println!("Score of member1: {}", score);
     /// ```
-    ///
-
     pub async fn zscore(
         &self,
         key: &str,
         members: &[String],
     ) -> Result<f64, RedisError> {
-        let output = self
-            .pool
-            .zscore(key, members.to_vec())
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZScore Failed: {:?}", err),
-            ))?;
+        let output =
+            self.pool.zscore(key, members.to_vec()).await.map_err(|err| {
+                RedisError::RedisDefaultError(format!(
+                    "ZScore Failed: {:?}",
+                    err
+                ))
+            })?;
 
         match output {
             RedisValue::Double(val) => Ok(val),
@@ -1709,7 +1695,7 @@ impl RedisConnectionPool {
     /// # Returns
     /// * `Vec<Option<f64>>`: A vector containing the scores of the specified members.
     /// * `RedisError`: An error variant indicating a problem interfacing with Redis or unexpected
-    /// data format.
+    ///   data format.
     /// # Examples
     /// ```rust
     /// // Omitted setup and initialization code
@@ -1722,13 +1708,13 @@ impl RedisConnectionPool {
         key: &str,
         members: &[String],
     ) -> Result<Vec<Option<f64>>, RedisError> {
-        let output = self
-            .pool
-            .zmscore(key, members.to_vec())
-            .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZMSCore Failed: {:?}", err),
-            ))?;
+        let output =
+            self.pool.zmscore(key, members.to_vec()).await.map_err(|err| {
+                RedisError::RedisDefaultError(format!(
+                    "ZMSCore Failed: {:?}",
+                    err
+                ))
+            })?;
         match output {
             RedisValue::Array(val) => {
                 let results = val
@@ -1736,12 +1722,11 @@ impl RedisConnectionPool {
                     .map(|v| match v {
                         RedisValue::Double(s) => Ok(Some(s)),
                         RedisValue::Integer(s) => Ok(Some(s as f64)),
-                        RedisValue::String(v) => v
-                            .parse::<f64>()
-                            .map(Some)
-                            .map_err(|err| {
+                        RedisValue::String(v) => {
+                            v.parse::<f64>().map(Some).map_err(|err| {
                                 RedisError::SerializationError(err.to_string())
-                            }),
+                            })
+                        }
                         RedisValue::Null => Ok(None),
                         case => Err(RedisError::RedisDefaultError(format!(
                             "Unexpected RedisValue encountered : {:?}",
@@ -1805,9 +1790,12 @@ impl RedisConnectionPool {
             .pool
             .zrange(key, min, max, sort, rev, limit, withscores)
             .await
-            .map_err(|err| RedisError::RedisDefaultError(
-                format!("ZRange Failed: {:?}", err),
-            ))?;
+            .map_err(|err| {
+                RedisError::RedisDefaultError(format!(
+                    "ZRange Failed: {:?}",
+                    err
+                ))
+            })?;
 
         match output {
             RedisValue::Array(val) => {
@@ -1815,7 +1803,9 @@ impl RedisConnectionPool {
                     .into_iter()
                     .map(|v| match v {
                         RedisValue::String(s) => serde_json::from_str::<T>(&s)
-                            .map_err(|err| RedisError::SerializationError(err.to_string())),
+                            .map_err(|err| {
+                                RedisError::SerializationError(err.to_string())
+                            }),
                         case => Err(RedisError::RedisDefaultError(format!(
                             "Unexpected RedisValue encountered : {:?}",
                             case
@@ -1886,62 +1876,60 @@ impl RedisConnectionPool {
         match output {
             RedisValue::Array(vec_items) => {
                 for items in vec_items.iter() {
-                    if let RedisValue::Array(items_arr) = items {
-                        if let Some(RedisValue::String(key)) = items_arr.first()
-                        //get(0)
+                    if let RedisValue::Array(items_arr) = items
+                        && let Some(RedisValue::String(key)) = items_arr.first()
+                    {
+                        let mut notifications_list: Vec<
+                            FxHashMap<String, String>,
+                        > = Vec::new();
+                        if let Some(RedisValue::Array(notifications)) =
+                            items_arr.get(1)
                         {
-                            let mut notifications_list: Vec<
-                                FxHashMap<String, String>,
-                            > = Vec::new();
-                            // Assuming the second element is an array of notifications
-                            if let Some(RedisValue::Array(notifications)) =
-                                items_arr.get(1)
-                            {
-                                for notification in notifications {
-                                    if let RedisValue::Array(notifications) =
-                                        notification
-                                    {
-                                        let x_id = if let Some(
-                                            RedisValue::String(xid),
-                                        ) = notifications.first()
-                                        //get(0)
+                            for notification in notifications {
+                                if let RedisValue::Array(notifications) =
+                                    notification
+                                {
+                                    let x_id =
+                                        if let Some(RedisValue::String(xid)) =
+                                            notifications.first()
                                         {
                                             xid.to_string()
                                         } else {
                                             "0-0".to_string()
                                         };
-                                        if let Some(RedisValue::Array(
-                                            notifications,
-                                        )) = notifications.get(1)
-                                        {
-                                            let mut notification_data: FxHashMap<String, String> =
-                                                FxHashMap::default();
-                                            let mut notif_iter =
-                                                notifications.iter();
-                                            while let (
-                                                Some(RedisValue::String(key)),
-                                                Some(RedisValue::String(notif)),
-                                            ) = (
-                                                notif_iter.next(),
-                                                notif_iter.next(),
-                                            ) {
-                                                notification_data.insert(
-                                                    key.to_string(),
-                                                    notif.to_string(),
-                                                );
-                                            }
+                                    if let Some(RedisValue::Array(
+                                        notifications,
+                                    )) = notifications.get(1)
+                                    {
+                                        let mut notification_data: FxHashMap<
+                                            String,
+                                            String,
+                                        > = FxHashMap::default();
+                                        let mut notif_iter =
+                                            notifications.iter();
+                                        while let (
+                                            Some(RedisValue::String(key)),
+                                            Some(RedisValue::String(notif)),
+                                        ) = (
+                                            notif_iter.next(),
+                                            notif_iter.next(),
+                                        ) {
                                             notification_data.insert(
-                                                "stream_xid".to_string(),
-                                                x_id.to_string(),
+                                                key.to_string(),
+                                                notif.to_string(),
                                             );
-                                            notifications_list
-                                                .push(notification_data);
                                         }
+                                        notification_data.insert(
+                                            "stream_xid".to_string(),
+                                            x_id.to_string(),
+                                        );
+                                        notifications_list
+                                            .push(notification_data);
                                     }
                                 }
                             }
-                            result.insert(key.to_string(), notifications_list);
                         }
+                        result.insert(key.to_string(), notifications_list);
                     }
                 }
                 Ok(result)

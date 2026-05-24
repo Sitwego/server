@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// IncomingPhoneNumberTollFreeEnumAddressRequirement : Whether the phone number requires an [Address](https://www.twilio.com/docs/usage/api/address) registered with Twilio. Can be: `none`, `any`, `local`, or `foreign`.
 /// Whether the phone number requires an [Address](https://www.twilio.com/docs/usage/api/address) registered with Twilio. Can be: `none`, `any`, `local`, or `foreign`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum IncomingPhoneNumberTollFreeEnumAddressRequirement {
     #[serde(rename = "none")]
     None,
@@ -23,7 +34,6 @@ pub enum IncomingPhoneNumberTollFreeEnumAddressRequirement {
     Local,
     #[serde(rename = "foreign")]
     Foreign,
-
 }
 
 impl std::fmt::Display for IncomingPhoneNumberTollFreeEnumAddressRequirement {
@@ -42,4 +52,3 @@ impl Default for IncomingPhoneNumberTollFreeEnumAddressRequirement {
         Self::None
     }
 }
-

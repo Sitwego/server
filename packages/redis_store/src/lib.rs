@@ -1,6 +1,6 @@
+pub mod events;
 pub mod r_types;
 pub mod redis;
-pub mod events;
 
 use crate::r_types::*;
 use fred::interfaces::ClientLike;
@@ -155,8 +155,10 @@ impl RedisConnectionPool {
                 conf.reconnect_delay,
             );
 
-        let mut per_conf = fred::types::config::PerformanceConfig::default();
-        per_conf.broadcast_channel_capacity = 1024 * 10;
+        let per_conf = fred::types::config::PerformanceConfig {
+            broadcast_channel_capacity: 1024 * 10,
+            ..Default::default()
+        };
         let pool = fred::prelude::Pool::new(
             redis_config,
             Some(per_conf),
@@ -215,13 +217,17 @@ impl RedisConnectionPool {
 
         tracing::info!(
             "Connecting to Redis ({}): {:?}",
-            if conf.cluster_enabled { "cluster" } else { "standalone" },
+            if conf.cluster_enabled {
+                "cluster"
+            } else {
+                "standalone"
+            },
             redis_url
         );
         // "redis-cluster://notif_test-redis-cluster-1:6379"
         let mut redis_config: fred::prelude::Config =
             fred::types::config::Config::from_url(&redis_url)
-                .map_err(|err| RedisError::RedisConnectionError(err))?;
+                .map_err(RedisError::RedisConnectionError)?;
         // only set_cluster_discovery_policy if cluster is enabled
         if conf.cluster_enabled {
             redis_config
@@ -294,12 +300,13 @@ impl RedisConnectionPool {
 mod tests {
     use super::*;
     use crate::events::{
-        DriverArrivedEvent, DriverArrivedEventPayload, DriverArrivedPayload, DriverInfo,
-        EventPayload, EventsManger, GeoLocation, NextDriverOfferEvent,
-        NextDriverOfferEventPayload, Rating, RideCancelPayload, RideCanceledEvent, RideEndEvent,
-        RideEndEventPayload, RideEndPayload, RideStartEvent, RideStartEventPayload,
-        RideStartPayload, NEXT_DRIVER_OFFERS_GROUP, NEXT_DRIVER_OFFERS_STREAM,
-        RIDE_EVENTS_GROUP, RIDE_EVENTS_STREAM,
+        DriverArrivedEvent, DriverArrivedEventPayload, DriverArrivedPayload,
+        DriverInfo, EventPayload, EventsManger, GeoLocation,
+        NEXT_DRIVER_OFFERS_GROUP, NEXT_DRIVER_OFFERS_STREAM,
+        NextDriverOfferEvent, NextDriverOfferEventPayload, RIDE_EVENTS_GROUP,
+        RIDE_EVENTS_STREAM, Rating, RideCancelPayload, RideCanceledEvent,
+        RideEndEvent, RideEndEventPayload, RideEndPayload, RideStartEvent,
+        RideStartEventPayload, RideStartPayload,
     };
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -313,7 +320,12 @@ mod tests {
     }
 
     fn geo_location(lat: f64, lng: f64) -> GeoLocation {
-        GeoLocation { latitude: lat, longitude: lng, address: String::new(), place_id: String::new() }
+        GeoLocation {
+            latitude: lat,
+            longitude: lng,
+            address: String::new(),
+            place_id: String::new(),
+        }
     }
 
     // ── RedisConfig ──────────────────────────────────────────────────────────────
@@ -338,7 +350,15 @@ mod tests {
     #[test]
     fn test_redis_config_new_sets_all_fields() {
         let c = RedisConfig::new(
-            "myhost".to_string(), 6380, 5, 1, 3, 500, 7200, 7200, 50,
+            "myhost".to_string(),
+            6380,
+            5,
+            1,
+            3,
+            500,
+            7200,
+            7200,
+            50,
         );
         assert_eq!(c.host, "myhost");
         assert_eq!(c.port, 6380);
@@ -358,14 +378,22 @@ mod tests {
 
     #[test]
     fn test_build_cluster_config_standalone_succeeds() {
-        let conf = RedisConfig { port: 6379, partition: 2, ..Default::default() };
+        let conf = RedisConfig {
+            port: 6379,
+            partition: 2,
+            ..Default::default()
+        };
         assert!(RedisConnectionPool::build_cluster_config(&conf).is_ok());
     }
 
     #[test]
     fn test_build_cluster_config_standalone_uses_partition() {
         // port 6380, partition 3 → URL should embed those values
-        let conf = RedisConfig { port: 6380, partition: 3, ..Default::default() };
+        let conf = RedisConfig {
+            port: 6380,
+            partition: 3,
+            ..Default::default()
+        };
         // Just assert it parses without error; fred validates the URL internally
         assert!(RedisConnectionPool::build_cluster_config(&conf).is_ok());
     }
@@ -447,30 +475,47 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: RideCanceledEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: RideCanceledEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert_eq!(decoded.event_id, "evt-001");
         assert_eq!(decoded.ride_id, "ride-001");
         assert_eq!(decoded.correlation_id, Some("corr-001".to_string()));
         assert_eq!(decoded.event_payload.ride_cancel.reason, "user_request");
-        assert!((decoded.event_payload.ride_cancel.refund_amount - 50.0).abs() < f64::EPSILON);
+        assert!(
+            (decoded.event_payload.ride_cancel.refund_amount - 50.0).abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
     fn test_ride_canceled_event_no_correlation_id() {
-        let event = RideCanceledEvent { correlation_id: None, ..Default::default() };
+        let event = RideCanceledEvent {
+            correlation_id: None,
+            ..Default::default()
+        };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: RideCanceledEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: RideCanceledEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert!(decoded.correlation_id.is_none());
     }
 
     #[test]
     fn test_event_payload_serde_rename_ride_cancel() {
         let payload = EventPayload {
-            ride_cancel: RideCancelPayload { reason: "test".to_string(), ..Default::default() },
+            ride_cancel: RideCancelPayload {
+                reason: "test".to_string(),
+                ..Default::default()
+            },
         };
         let json = serde_json::to_string(&payload).expect("serialize");
-        assert!(json.contains("\"RideCancel\""), "expected 'RideCancel' rename in: {json}");
-        assert!(!json.contains("\"ride_cancel\""), "snake_case key must not appear in: {json}");
+        assert!(
+            json.contains("\"RideCancel\""),
+            "expected 'RideCancel' rename in: {json}"
+        );
+        assert!(
+            !json.contains("\"ride_cancel\""),
+            "snake_case key must not appear in: {json}"
+        );
     }
 
     // ── DriverArrivedEvent serde ─────────────────────────────────────────────────
@@ -495,10 +540,16 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: DriverArrivedEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: DriverArrivedEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert_eq!(decoded.event_id, "evt-002");
         assert_eq!(decoded.event_payload.driver_arrived.wait_time_seconds, 60);
-        assert!((decoded.event_payload.driver_arrived.arrival_location.latitude - (-1.2921)).abs() < f64::EPSILON);
+        assert!(
+            (decoded.event_payload.driver_arrived.arrival_location.latitude
+                - (-1.2921))
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
@@ -511,7 +562,10 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&payload).expect("serialize");
-        assert!(json.contains("\"DriverArrived\""), "expected 'DriverArrived' rename in: {json}");
+        assert!(
+            json.contains("\"DriverArrived\""),
+            "expected 'DriverArrived' rename in: {json}"
+        );
     }
 
     // ── RideStartEvent serde ─────────────────────────────────────────────────────
@@ -547,9 +601,14 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: RideStartEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: RideStartEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert_eq!(decoded.event_payload.ride_start.estimated_duration, 900);
-        let info = decoded.event_payload.ride_start.driver_info.expect("driver_info present");
+        let info = decoded
+            .event_payload
+            .ride_start
+            .driver_info
+            .expect("driver_info present");
         assert_eq!(info.name, "Jane Doe");
         assert!((info.rating - 4.9).abs() < f64::EPSILON);
     }
@@ -578,7 +637,8 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: RideStartEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: RideStartEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert!(decoded.event_payload.ride_start.driver_info.is_none());
     }
 
@@ -596,7 +656,10 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&payload).expect("serialize");
-        assert!(json.contains("\"RideStart\""), "expected 'RideStart' rename in: {json}");
+        assert!(
+            json.contains("\"RideStart\""),
+            "expected 'RideStart' rename in: {json}"
+        );
     }
 
     // ── RideEndEvent serde ───────────────────────────────────────────────────────
@@ -628,9 +691,17 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: RideEndEvent = serde_json::from_str(&json).expect("deserialize");
-        assert!((decoded.event_payload.ride_end.distance_km - 5.2).abs() < f64::EPSILON);
-        let rr = decoded.event_payload.ride_end.rider_rating.expect("rider_rating present");
+        let decoded: RideEndEvent =
+            serde_json::from_str(&json).expect("deserialize");
+        assert!(
+            (decoded.event_payload.ride_end.distance_km - 5.2).abs()
+                < f64::EPSILON
+        );
+        let rr = decoded
+            .event_payload
+            .ride_end
+            .rider_rating
+            .expect("rider_rating present");
         assert_eq!(rr.score, 5);
         assert_eq!(rr.tags, vec!["polite", "on-time"]);
         assert!(decoded.event_payload.ride_end.driver_rating.is_none());
@@ -659,7 +730,8 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: RideEndEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: RideEndEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert!(decoded.event_payload.ride_end.rider_rating.is_none());
         assert!(decoded.event_payload.ride_end.driver_rating.is_none());
     }
@@ -677,7 +749,10 @@ mod tests {
             },
         };
         let json = serde_json::to_string(&payload).expect("serialize");
-        assert!(json.contains("\"RideEnd\""), "expected 'RideEnd' rename in: {json}");
+        assert!(
+            json.contains("\"RideEnd\""),
+            "expected 'RideEnd' rename in: {json}"
+        );
     }
 
     // ── NextDriverOfferEvent serde ───────────────────────────────────────────────
@@ -703,7 +778,8 @@ mod tests {
             }),
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: NextDriverOfferEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: NextDriverOfferEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert_eq!(decoded.event_id, "evt-007");
         assert_eq!(decoded.ride_request_id, "req-001");
         let p = decoded.payload.expect("payload present");
@@ -722,7 +798,8 @@ mod tests {
             payload: None,
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        let decoded: NextDriverOfferEvent = serde_json::from_str(&json).expect("deserialize");
+        let decoded: NextDriverOfferEvent =
+            serde_json::from_str(&json).expect("deserialize");
         assert!(decoded.payload.is_none());
     }
 
@@ -751,8 +828,12 @@ mod tests {
     #[ignore = "requires Redis on localhost:6379"]
     async fn test_xadd_event_returns_valid_message_id() {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
-        let event = RideCanceledEvent { event_id: "xadd-test".to_string(), ..Default::default() };
-        let msg_id = pool.xadd_event("swg:test:xadd", &event).await.expect("xadd_event");
+        let event = RideCanceledEvent {
+            event_id: "xadd-test".to_string(),
+            ..Default::default()
+        };
+        let msg_id =
+            pool.xadd_event("swg:test:xadd", &event).await.expect("xadd_event");
         assert!(!msg_id.is_empty());
         assert!(msg_id.contains('-'), "ID must be <ms>-<seq>: {msg_id}");
     }
@@ -762,7 +843,9 @@ mod tests {
     async fn test_ensure_consumer_group_creates_group() {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
         pool.xadd_event("swg:test:group_stream", &"seed").await.unwrap();
-        let result = pool.ensure_consumer_group("swg:test:group_stream", "test-workers").await;
+        let result = pool
+            .ensure_consumer_group("swg:test:group_stream", "test-workers")
+            .await;
         assert!(result.is_ok(), "{:?}", result.err());
     }
 
@@ -771,10 +854,18 @@ mod tests {
     async fn test_ensure_consumer_group_idempotent_busygroup() {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
         pool.xadd_event("swg:test:idem_stream", &"seed").await.unwrap();
-        pool.ensure_consumer_group("swg:test:idem_stream", "idem-workers").await.unwrap();
+        pool.ensure_consumer_group("swg:test:idem_stream", "idem-workers")
+            .await
+            .unwrap();
         // Second call must silently succeed (BUSYGROUP ignored)
-        let result = pool.ensure_consumer_group("swg:test:idem_stream", "idem-workers").await;
-        assert!(result.is_ok(), "BUSYGROUP must be silently ignored: {:?}", result.err());
+        let result = pool
+            .ensure_consumer_group("swg:test:idem_stream", "idem-workers")
+            .await;
+        assert!(
+            result.is_ok(),
+            "BUSYGROUP must be silently ignored: {:?}",
+            result.err()
+        );
     }
 
     #[tokio::test]
@@ -791,7 +882,10 @@ mod tests {
     async fn test_events_manager_publish_event() {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
         let em = EventsManger::new("swg:test:publish");
-        let event = RideCanceledEvent { event_id: "pub-1".to_string(), ..Default::default() };
+        let event = RideCanceledEvent {
+            event_id: "pub-1".to_string(),
+            ..Default::default()
+        };
         let result = em.publish_event(Some(&event), &pool).await;
         assert!(result.is_ok(), "{:?}", result.err());
     }
@@ -820,7 +914,8 @@ mod tests {
             speed: 30,
             bearing: 150.0,
         };
-        let result = pool.publish_message("driver_location_change_channel", &msg).await;
+        let result =
+            pool.publish_message("driver_location_change_channel", &msg).await;
         assert!(result.is_ok(), "{:?}", result.err());
     }
 
@@ -838,9 +933,7 @@ mod tests {
         let result: Result<
             fred::types::streams::XReadResponse<String, String, String, String>,
             _,
-        > = client
-            .xread_map(Some(100u64), None::<u64>, stream, "0-0")
-            .await;
+        > = client.xread_map(Some(100u64), None::<u64>, stream, "0-0").await;
         match result {
             Ok(response) => response
                 .get(stream)
@@ -860,7 +953,8 @@ mod tests {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
         let stream = "swg:test:ride_cancel_verify";
 
-        let unique_id = format!("verify-cancel-{}", chrono::Utc::now().timestamp_millis());
+        let unique_id =
+            format!("verify-cancel-{}", chrono::Utc::now().timestamp_millis());
         let event = RideCanceledEvent {
             event_id: unique_id.clone(),
             ride_id: "ride-verify-001".to_string(),
@@ -880,11 +974,16 @@ mod tests {
         };
 
         let em = EventsManger::new(stream);
-        em.publish_event(Some(&event), &pool).await.expect("publish_event failed");
+        em.publish_event(Some(&event), &pool)
+            .await
+            .expect("publish_event failed");
 
         // Read all payloads and find the one we just published by event_id
         let payloads = xread_all_payloads(&pool, stream).await;
-        assert!(!payloads.is_empty(), "stream should have at least one message");
+        assert!(
+            !payloads.is_empty(),
+            "stream should have at least one message"
+        );
 
         let decoded = payloads
             .iter()
@@ -897,7 +996,10 @@ mod tests {
         assert_eq!(decoded.driver_id, "driver-verify-001");
         assert_eq!(decoded.rider_id, "rider-verify-001");
         assert_eq!(decoded.event_payload.ride_cancel.reason, "user_request");
-        assert!((decoded.event_payload.ride_cancel.refund_amount - 100.0).abs() < f64::EPSILON);
+        assert!(
+            (decoded.event_payload.ride_cancel.refund_amount - 100.0).abs()
+                < f64::EPSILON
+        );
     }
 
     #[tokio::test]
@@ -906,7 +1008,8 @@ mod tests {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
         let stream = "swg:test:next_offer_verify";
 
-        let unique_id = format!("verify-offer-{}", chrono::Utc::now().timestamp_millis());
+        let unique_id =
+            format!("verify-offer-{}", chrono::Utc::now().timestamp_millis());
         let event = NextDriverOfferEvent {
             event_id: unique_id.clone(),
             timestamp: chrono::Utc::now().timestamp_millis(),
@@ -927,14 +1030,21 @@ mod tests {
         };
 
         let em = EventsManger::new(stream);
-        em.publish_event(Some(&event), &pool).await.expect("publish_event failed");
+        em.publish_event(Some(&event), &pool)
+            .await
+            .expect("publish_event failed");
 
         let payloads = xread_all_payloads(&pool, stream).await;
-        assert!(!payloads.is_empty(), "stream should have at least one message");
+        assert!(
+            !payloads.is_empty(),
+            "stream should have at least one message"
+        );
 
         let decoded = payloads
             .iter()
-            .filter_map(|p| serde_json::from_str::<NextDriverOfferEvent>(p).ok())
+            .filter_map(|p| {
+                serde_json::from_str::<NextDriverOfferEvent>(p).ok()
+            })
             .find(|e| e.event_id == unique_id)
             .expect("published event not found in stream");
 
@@ -952,7 +1062,8 @@ mod tests {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
         let stream = "swg:test:ride_start_verify";
 
-        let unique_id = format!("verify-start-{}", chrono::Utc::now().timestamp_millis());
+        let unique_id =
+            format!("verify-start-{}", chrono::Utc::now().timestamp_millis());
         let event = RideStartEvent {
             event_id: unique_id.clone(),
             timestamp: chrono::Utc::now().timestamp_millis(),
@@ -983,7 +1094,9 @@ mod tests {
         };
 
         let em = EventsManger::new(stream);
-        em.publish_event(Some(&event), &pool).await.expect("publish_event failed");
+        em.publish_event(Some(&event), &pool)
+            .await
+            .expect("publish_event failed");
 
         let payloads = xread_all_payloads(&pool, stream).await;
         let decoded = payloads
@@ -993,7 +1106,8 @@ mod tests {
             .expect("RideStartEvent not found in stream");
 
         assert_eq!(decoded.ride_id, "ride-start-001");
-        let info = decoded.event_payload.ride_start.driver_info.expect("driver_info");
+        let info =
+            decoded.event_payload.ride_start.driver_info.expect("driver_info");
         assert_eq!(info.name, "Test Driver");
         assert_eq!(decoded.event_payload.ride_start.estimated_duration, 600);
     }
@@ -1004,7 +1118,8 @@ mod tests {
         let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
         let stream = "swg:test:ride_end_verify";
 
-        let unique_id = format!("verify-end-{}", chrono::Utc::now().timestamp_millis());
+        let unique_id =
+            format!("verify-end-{}", chrono::Utc::now().timestamp_millis());
         let event = RideEndEvent {
             event_id: unique_id.clone(),
             timestamp: chrono::Utc::now().timestamp_millis(),
@@ -1035,7 +1150,9 @@ mod tests {
         };
 
         let em = EventsManger::new(stream);
-        em.publish_event(Some(&event), &pool).await.expect("publish_event failed");
+        em.publish_event(Some(&event), &pool)
+            .await
+            .expect("publish_event failed");
 
         let payloads = xread_all_payloads(&pool, stream).await;
         let decoded = payloads
@@ -1045,9 +1162,21 @@ mod tests {
             .expect("RideEndEvent not found in stream");
 
         assert_eq!(decoded.ride_id, "ride-end-001");
-        assert!((decoded.event_payload.ride_end.distance_km - 8.4).abs() < f64::EPSILON);
-        assert!((decoded.event_payload.ride_end.final_fare - 420.0).abs() < f64::EPSILON);
-        assert_eq!(decoded.event_payload.ride_end.rider_rating.unwrap().score, 5);
-        assert_eq!(decoded.event_payload.ride_end.driver_rating.unwrap().score, 4);
+        assert!(
+            (decoded.event_payload.ride_end.distance_km - 8.4).abs()
+                < f64::EPSILON
+        );
+        assert!(
+            (decoded.event_payload.ride_end.final_fare - 420.0).abs()
+                < f64::EPSILON
+        );
+        assert_eq!(
+            decoded.event_payload.ride_end.rider_rating.unwrap().score,
+            5
+        );
+        assert_eq!(
+            decoded.event_payload.ride_end.driver_rating.unwrap().score,
+            4
+        );
     }
 }

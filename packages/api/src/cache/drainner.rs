@@ -57,35 +57,32 @@ impl RideLocationInfoDrainner {
         loop {
             tokio::select! {
               incoming_location = rx.recv() => {
-                match incoming_location {
-                    Some(DriverLocationEvent {latitude, longitude, driver_id, location_profile: LocationProfile { vehicle_category, created_at }, ..}) => {
-                    let DriverId (driver_id) = driver_id;
-                    let Latitude(latitude) = latitude;
-                    let Longitude(longitude) = longitude;
-                    let TimeStamp(time) = created_at;
-                    let bucket_key = create_bucket_key(map_size, TimeStamp(time));
-                    info!("Draining Location data to redis");
-                    driver_locations_map.entry(
-                    on_driver_location_key(&bucket_key, &vehicle_category)
-                    )
-                    .or_default()
-                    .push(GeoValue {
-                    member: driver_id.into(),
-                    coordinates: GeoPosition {
-                        latitude,
-                        longitude,
-                    }
-                    });
+                if let Some(DriverLocationEvent {latitude, longitude, driver_id, location_profile: LocationProfile { vehicle_category, created_at }, ..}) = incoming_location {
+                let DriverId (driver_id) = driver_id;
+                let Latitude(latitude) = latitude;
+                let Longitude(longitude) = longitude;
+                let TimeStamp(time) = created_at;
+                let bucket_key = create_bucket_key(map_size, TimeStamp(time));
+                info!("Draining Location data to redis");
+                driver_locations_map.entry(
+                on_driver_location_key(&bucket_key, &vehicle_category)
+                )
+                .or_default()
+                .push(GeoValue {
+                member: driver_id.into(),
+                coordinates: GeoPosition {
+                    latitude,
+                    longitude,
+                }
+                });
 
-                    drainer_size += 1;
+                drainer_size += 1;
 
-                    if drainer_size >= capacity {
-                    info!(tag = "[Force Draining Driver Locations to Redis]", length = %drainer_size);
-                    Self::empty_driver_locations(&exp, &driver_locations_map, &redis).await;
-                    Self::cleanup(&mut drainer_size, &mut driver_locations_map);
-                    }
-                    },
-                    None => {},
+                if drainer_size >= capacity {
+                info!(tag = "[Force Draining Driver Locations to Redis]", length = %drainer_size);
+                Self::empty_driver_locations(&exp, &driver_locations_map, &redis).await;
+                Self::cleanup(&mut drainer_size, &mut driver_locations_map);
+                }
                 }
               },
               _ = timer.tick() => {

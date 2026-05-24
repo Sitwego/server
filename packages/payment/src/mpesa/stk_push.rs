@@ -118,6 +118,7 @@ impl<'a> From<StkPush<'a>> for StkPushReq<'a> {
 impl StkPushBuilder<'_> {}
 
 impl<'a> StkPush<'a> {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(c: &'a MpesaInstance) -> StkPushBuilder<'a> {
         StkPushBuilder::default().mpesa_instance(c)
     }

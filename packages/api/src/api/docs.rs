@@ -134,8 +134,7 @@ pub async fn save_driver_identity_documents(
     Path(id_type): Path<String>,
     Json(body): Json<DriverIdentityDocuments>,
 ) -> Result<StatusCode, AppError> {
-    let _ = ctx
-        .db
+    ctx.db
         .save_driver_identity_documents(
             DriverId(client_id),
             DriverIdentityInputs {
@@ -171,8 +170,7 @@ pub async fn save_driver_documents(
     let doc_type = DriverDocumentType::from_str(&doc_type)
         .ok()
         .ok_or(AppError::InternalError("Missing body doc_type".to_string()))?;
-    let _ = ctx
-        .db
+    ctx.db
         .save_driver_documents(
             DriverId(client_id),
             crate::queries::docs::DriverDocumentInput {
@@ -193,8 +191,7 @@ pub async fn save_vehicle_info(
     Extension(client_id): Extension<String>,
     Json(body): Json<VehicleInfo>,
 ) -> Result<StatusCode, AppError> {
-    let _ = ctx
-        .db
+    ctx.db
         .save_vehicle_info(DriverId(client_id), body)
         .await
         .map_err(|err| AppError::InternalError(err.to_string()))?;

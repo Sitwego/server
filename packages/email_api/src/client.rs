@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use resend_rs::{types::CreateEmailBaseOptions, Resend as ResendSdk};
+use resend_rs::{Resend as ResendSdk, types::CreateEmailBaseOptions};
 use thiserror::Error;
 
 use crate::types::EmailMessage;
@@ -42,14 +42,22 @@ pub struct ResendClient {
 impl ResendClient {
     /// `api_key` — your Resend API key (starts with `re_`).
     pub fn new(api_key: impl Into<String>) -> Self {
-        Self { inner: ResendSdk::new(api_key.into().as_str()) }
+        Self {
+            inner: ResendSdk::new(api_key.into().as_str()),
+        }
     }
 }
 
 impl EmailSender for ResendClient {
-    async fn send(&self, msg: EmailMessage) -> Result<EmailReceipt, EmailError> {
-        let mut req =
-            CreateEmailBaseOptions::new(msg.from.as_str(), msg.to.as_slice(), msg.subject.as_str());
+    async fn send(
+        &self,
+        msg: EmailMessage,
+    ) -> Result<EmailReceipt, EmailError> {
+        let mut req = CreateEmailBaseOptions::new(
+            msg.from.as_str(),
+            msg.to.as_slice(),
+            msg.subject.as_str(),
+        );
 
         if let Some(html) = &msg.html {
             req = req.with_html(html.as_str());
@@ -69,6 +77,8 @@ impl EmailSender for ResendClient {
 
         let response = self.inner.emails.send(req).await?;
 
-        Ok(EmailReceipt { id: response.id.to_string() })
+        Ok(EmailReceipt {
+            id: response.id.to_string(),
+        })
     }
 }

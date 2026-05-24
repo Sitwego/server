@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// RecordingAddOnResultEnumStatus : The status of the result. Can be: `canceled`, `completed`, `deleted`, `failed`, `in-progress`, `init`, `processing`, `queued`.
 /// The status of the result. Can be: `canceled`, `completed`, `deleted`, `failed`, `in-progress`, `init`, `processing`, `queued`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum RecordingAddOnResultEnumStatus {
     #[serde(rename = "canceled")]
     Canceled,
@@ -31,7 +42,6 @@ pub enum RecordingAddOnResultEnumStatus {
     Processing,
     #[serde(rename = "queued")]
     Queued,
-
 }
 
 impl std::fmt::Display for RecordingAddOnResultEnumStatus {
@@ -54,4 +64,3 @@ impl Default for RecordingAddOnResultEnumStatus {
         Self::Canceled
     }
 }
-

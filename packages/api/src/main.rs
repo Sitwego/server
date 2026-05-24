@@ -37,6 +37,7 @@ use utils::{Result, executor::Executor};
 static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
+#[allow(clippy::result_large_err)]
 async fn main() -> Result<()> {
     dotenv().ok();
     tracing_subscriber::fmt::init();
@@ -157,9 +158,7 @@ pub(crate) async fn update_subscriptions(
                 info!("Running job to update subscriptions for JHB every day at midnight {:?}", uuid);
 
                 let _ = ctx.db.update_due_amount().await.map_err(|_| {
-                    JobSchedulerError::from(
-                        JobSchedulerError::NotifyOnStateError,
-                    )
+                    JobSchedulerError::NotifyOnStateError
                 });
                 let next_tick = l.next_tick_for_job(uuid).await;
                 match next_tick {

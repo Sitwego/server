@@ -1,84 +1,71 @@
 #!/bin/bash
+set -o pipefail
 
 SILENT=false
-PACKAGES=""
+PACKAGES=()
 
-# Check for silent flag
 if [ "$1" = "--silent" ]; then
     SILENT=true
     shift
 fi
 
-# Check if any arguments are provided
+log() {
+    if [ "$SILENT" = false ]; then
+        echo "$@"
+    fi
+}
+
+# Run a command; in silent mode, capture output and only show it on failure.
+run() {
+    if [ "$SILENT" = true ]; then
+        local output
+        if ! output=$("$@" 2>&1); then
+            echo "$output" >&2
+            return 1
+        fi
+    else
+        "$@"
+    fi
+}
+
 if [ $# -gt 0 ]; then
-    echo "Linting specific packages: $@"
-    
-    # Convert all arguments into --package flags
+    log "Linting specific packages: $*"
+
     for pkg in "$@"; do
-        # Verify each package exists in the workspace
-        if ! cargo metadata --format-version 1 | grep -q "\"name\":\"$pkg\""; then
-            if [ "$SILENT" = false ]; then
-                echo "Error: Package '$pkg' not found in workspace"
-            fi
+        if ! cargo pkgid --package "$pkg" > /dev/null 2>&1; then
+            log "Error: Package '$pkg' not found in workspace"
             exit 1
         fi
-        PACKAGES="$PACKAGES --package $pkg"
+        PACKAGES+=(--package "$pkg")
     done
-    
-    # Format code for specific packages
-    if [ "$SILENT" = false ]; then echo "Running rustfmt..."; fi
-    if [ "$SILENT" = true ]; then
-        cargo fmt $PACKAGES -- --check 2>/dev/null
-    else
-        cargo fmt $PACKAGES -- --check
-    fi
-    
-    # Lint code for specific packages only
-    if [ "$SILENT" = false ]; then echo "Running Clippy..."; fi
-    if [ "$SILENT" = true ]; then
-        cargo clippy $PACKAGES --no-deps -- -D warnings 2>/dev/null
-    else
-        cargo clippy $PACKAGES --no-deps -- -D warnings
-    fi
-    
-    # Check for errors
-    if [ $? -ne 0 ]; then
-        if [ "$SILENT" = false ]; then
-            echo "Code formatting or linting failed!"
-        fi
+
+    log "Running rustfmt..."
+    if ! run cargo fmt "${PACKAGES[@]}" -- --check; then
+        log "Code formatting failed!"
         exit 1
-    else
-        if [ "$SILENT" = false ]; then
-            echo "Code is clean and formatted!"
-        fi
     fi
+
+    log "Running Clippy..."
+    if ! run cargo clippy "${PACKAGES[@]}" --all-targets --all-features --no-deps -- -D warnings; then
+        log "Linting failed!"
+        exit 1
+    fi
+
+    log "Code is clean and formatted!"
 else
-    echo "Linting all crates in workspace"
-    # Format code
-    if [ "$SILENT" = false ]; then echo "Running rustfmt..."; fi
-    if [ "$SILENT" = true ]; then
-        cargo fmt --all -- --check 2>/dev/null
-    else
-        cargo fmt --all -- --check
+    log "Linting all crates in workspace"
+
+    log "Running rustfmt..."
+    if ! run cargo fmt --all -- --check; then
+        log "Code formatting failed!"
+        exit 1
     fi
-    
-    # Lint code
-    if [ "$SILENT" = false ]; then echo "Running Clippy..."; fi
-    if [ "$SILENT" = true ]; then
-        cargo clippy --all-targets --all-features -- -D warnings 2>/dev/null
-    else
-        cargo clippy --all-targets --all-features -- -D warnings
+
+    log "Running Clippy..."
+    if ! run cargo clippy --all-targets --all-features -- -D warnings; then
+        log "Linting failed!"
+        exit 1
     fi
-    
-    # Check for errors
-    if [ $? -ne 0 ]; then
-        if [ "$SILENT" = false ]; then
-            echo "Code formatting or linting failed!"
-        fi
-        echo "Code formatting error!"
-    else
-        if [ "$SILENT" = false ]; then
-            echo "Code is clean and formatted!"
-        fi
-    fi
+
+    log "Code is clean and formatted!"
 fi

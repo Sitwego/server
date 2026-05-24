@@ -42,19 +42,14 @@ impl ProcessOnGoingRideCoordinates {
         loop {
             tokio::select! {
               incoming_ride_data = r_rx.recv() => {
-                match incoming_ride_data {
-                    Some((ride_id, driver_id, ride_coordinates)) => {
-                        // Process the ride coordinates
-                        // For example, save them to the database or perform some calculations
-                        if ride_coordinates.len() > 2 {
-                            // println!("Processing ride coordinates: {:?}", ride_coordinates);
-                            // Here you can call the database function to process the coordinates
-                            let _ = db.process_ride_coordinates(&driver_id, &ride_id, &ride_coordinates)
-                                .await;
-                        }
-                    }
-                    None => {
-
+                if let Some((ride_id, driver_id, ride_coordinates)) = incoming_ride_data {
+                    // Process the ride coordinates
+                    // For example, save them to the database or perform some calculations
+                    if ride_coordinates.len() > 2 {
+                        // println!("Processing ride coordinates: {:?}", ride_coordinates);
+                        // Here you can call the database function to process the coordinates
+                        let _ = db.process_ride_coordinates(&driver_id, &ride_id, &ride_coordinates)
+                            .await;
                     }
                 }
               },

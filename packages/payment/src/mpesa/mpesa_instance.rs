@@ -46,7 +46,7 @@ impl MpesaInstance {
 
         let http_client = ReqwClient::builder()
             .connect_timeout(Duration::from_secs(10))
-            .user_agent(format!("{CARGO_PACKAGE_VERSION}"))
+            .user_agent(CARGO_PACKAGE_VERSION.to_string())
             .build()
             .expect("Faild to create http_client");
         Self {
@@ -54,8 +54,9 @@ impl MpesaInstance {
             consumer_secret: secret,
             initiator_password: Mutex::new(None),
             http_client,
-            base_url: std::env::var("MPESA_BASE_URL")
-                .unwrap_or_else(|_| "https://sandbox.safaricom.co.ke".to_string()),
+            base_url: std::env::var("MPESA_BASE_URL").unwrap_or_else(|_| {
+                "https://sandbox.safaricom.co.ke".to_string()
+            }),
             certificate: "".to_string(),
         }
     }
@@ -72,7 +73,7 @@ impl MpesaInstance {
         if let Some(token) = token {
             return Ok(token);
         }
-        let token = auth(&self).await?; // this returns token successfuly
+        let token = auth(self).await?; // this returns token successfuly
 
         println!(" saving token {:?}", key);
         SIMPLI_CACHE.insert(key.to_owned(), token.clone()).await;
@@ -107,7 +108,7 @@ impl MpesaInstance {
         }
     }
 
-    pub fn stk_push(&self) -> StkPushBuilder {
+    pub fn stk_push(&self) -> StkPushBuilder<'_> {
         StkPush::new(self)
     }
 }

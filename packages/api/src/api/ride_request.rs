@@ -5,7 +5,7 @@ use redis_store::r_types::{GeoPoint, Radius};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio::time::{Duration, Instant};
-use tracing::{info, info_span, warn, warn_span};
+use tracing::{info_span, warn, warn_span};
 
 use crate::APIContext;
 use crate::dispatch::dispatch::DriverPoolManager;
@@ -85,6 +85,12 @@ pub struct RequestMetadata {
 
 pub struct DispatchApiManager {
     pub requests: DashMap<String, RideRequestState>,
+}
+
+impl Default for DispatchApiManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DispatchApiManager {

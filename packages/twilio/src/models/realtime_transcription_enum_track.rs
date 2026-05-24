@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// RealtimeTranscriptionEnumTrack : One of `inbound_track`, `outbound_track`, `both_tracks`.
 /// One of `inbound_track`, `outbound_track`, `both_tracks`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum RealtimeTranscriptionEnumTrack {
     #[serde(rename = "inbound_track")]
     InboundTrack,
@@ -21,7 +32,6 @@ pub enum RealtimeTranscriptionEnumTrack {
     OutboundTrack,
     #[serde(rename = "both_tracks")]
     BothTracks,
-
 }
 
 impl std::fmt::Display for RealtimeTranscriptionEnumTrack {
@@ -39,4 +49,3 @@ impl Default for RealtimeTranscriptionEnumTrack {
         Self::InboundTrack
     }
 }
-

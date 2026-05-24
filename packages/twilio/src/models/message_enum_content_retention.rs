@@ -13,13 +13,23 @@ use serde::{Deserialize, Serialize};
 
 /// MessageEnumContentRetention : Determines if the message content can be stored or redacted based on privacy settings
 /// Determines if the message content can be stored or redacted based on privacy settings
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum MessageEnumContentRetention {
     #[serde(rename = "retain")]
     Retain,
     #[serde(rename = "discard")]
     Discard,
-
 }
 
 impl std::fmt::Display for MessageEnumContentRetention {
@@ -36,4 +46,3 @@ impl Default for MessageEnumContentRetention {
         Self::Retain
     }
 }
-

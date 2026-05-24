@@ -61,33 +61,32 @@ impl Documents for Database {
         driver_id: DriverId,
         driver_docs: DriverDocumentInput<'a>,
     ) -> Result<()> {
-        let _ = self
-            .transaction(move |tx| {
-                let expiry = driver_docs.expiry;
-                let file_id = driver_docs.file_id;
-                let driver_id = driver_id.0.to_owned();
-                let doc_type = driver_docs.doc_type.to_owned();
-                let nonce = driver_docs.nonce.to_vec();
-                let encrypted_key = driver_docs.encrypted_key.to_vec();
-                Box::pin(async move {
-                    let _ = docs::Entity::insert(docs::ActiveModel {
-                        driver_id: sea_orm::ActiveValue::Set(driver_id),
-                        document_type: sea_orm::ActiveValue::Set(doc_type),
-                        file_id: sea_orm::ActiveValue::Set(file_id.to_owned()),
-                        nonce: sea_orm::ActiveValue::Set(nonce),
-                        // KMS ciphertext blob — needed to recover the data key.
-                        encrypted_key: sea_orm::ActiveValue::Set(encrypted_key),
-                        metadata: sea_orm::ActiveValue::Set(
-                            json!({"expiry": expiry.to_owned()}),
-                        ),
-                        ..Default::default()
-                    })
-                    .exec(&*tx)
-                    .await?;
-                    Ok(())
+        self.transaction(move |tx| {
+            let expiry = driver_docs.expiry;
+            let file_id = driver_docs.file_id;
+            let driver_id = driver_id.0.to_owned();
+            let doc_type = driver_docs.doc_type.to_owned();
+            let nonce = driver_docs.nonce.to_vec();
+            let encrypted_key = driver_docs.encrypted_key.to_vec();
+            Box::pin(async move {
+                let _ = docs::Entity::insert(docs::ActiveModel {
+                    driver_id: sea_orm::ActiveValue::Set(driver_id),
+                    document_type: sea_orm::ActiveValue::Set(doc_type),
+                    file_id: sea_orm::ActiveValue::Set(file_id.to_owned()),
+                    nonce: sea_orm::ActiveValue::Set(nonce),
+                    // KMS ciphertext blob — needed to recover the data key.
+                    encrypted_key: sea_orm::ActiveValue::Set(encrypted_key),
+                    metadata: sea_orm::ActiveValue::Set(
+                        json!({"expiry": expiry.to_owned()}),
+                    ),
+                    ..Default::default()
                 })
+                .exec(&*tx)
+                .await?;
+                Ok(())
             })
-            .await?;
+        })
+        .await?;
         Ok(())
     }
 
@@ -96,51 +95,48 @@ impl Documents for Database {
         driver_id: DriverId,
         driver_identity_docs: DriverIdentityInputs<'a>,
     ) -> Result<()> {
-        let _ = self
-            .transaction(move |tx| {
-                let front_nonce = driver_identity_docs.front_nonce.to_vec();
-                let front_encrypted_key =
-                    driver_identity_docs.front_encrypted_key.to_vec();
-                let back_nonce = driver_identity_docs.back_nonce.to_vec();
-                let back_encrypted_key =
-                    driver_identity_docs.back_encrypted_key.to_vec();
-                let driver_id = driver_id.inner().to_owned();
-                Box::pin(async move {
-                    let _ = driver_identity_documents::Entity::insert(
-                        driver_identity_documents::ActiveModel {
-                            driver_id: sea_orm::ActiveValue::Set(driver_id),
-                            id_number: sea_orm::ActiveValue::Set(
-                                driver_identity_docs.id_number.to_owned(),
-                            ),
-                            document_subtype: sea_orm::ActiveValue::Set(
-                                driver_identity_docs
-                                    .document_subtype
-                                    .to_owned(),
-                            ),
-                            file_id_front: sea_orm::ActiveValue::Set(
-                                driver_identity_docs.file_id_front.to_owned(),
-                            ),
-                            front_nonce: sea_orm::ActiveValue::Set(front_nonce),
-                            front_encrypted_key: sea_orm::ActiveValue::Set(
-                                front_encrypted_key,
-                            ),
-                            back_nonce: sea_orm::ActiveValue::Set(back_nonce),
-                            back_encrypted_key: sea_orm::ActiveValue::Set(
-                                back_encrypted_key,
-                            ),
-                            file_id_back: sea_orm::ActiveValue::Set(
-                                driver_identity_docs.file_id_back.to_owned(),
-                            ),
-                            ..Default::default()
-                        },
-                    )
-                    .exec(&*tx)
-                    .await
-                    .expect("Failed to create DriverIdentityInputs");
-                    Ok(())
-                })
+        self.transaction(move |tx| {
+            let front_nonce = driver_identity_docs.front_nonce.to_vec();
+            let front_encrypted_key =
+                driver_identity_docs.front_encrypted_key.to_vec();
+            let back_nonce = driver_identity_docs.back_nonce.to_vec();
+            let back_encrypted_key =
+                driver_identity_docs.back_encrypted_key.to_vec();
+            let driver_id = driver_id.inner().to_owned();
+            Box::pin(async move {
+                let _ = driver_identity_documents::Entity::insert(
+                    driver_identity_documents::ActiveModel {
+                        driver_id: sea_orm::ActiveValue::Set(driver_id),
+                        id_number: sea_orm::ActiveValue::Set(
+                            driver_identity_docs.id_number.to_owned(),
+                        ),
+                        document_subtype: sea_orm::ActiveValue::Set(
+                            driver_identity_docs.document_subtype.to_owned(),
+                        ),
+                        file_id_front: sea_orm::ActiveValue::Set(
+                            driver_identity_docs.file_id_front.to_owned(),
+                        ),
+                        front_nonce: sea_orm::ActiveValue::Set(front_nonce),
+                        front_encrypted_key: sea_orm::ActiveValue::Set(
+                            front_encrypted_key,
+                        ),
+                        back_nonce: sea_orm::ActiveValue::Set(back_nonce),
+                        back_encrypted_key: sea_orm::ActiveValue::Set(
+                            back_encrypted_key,
+                        ),
+                        file_id_back: sea_orm::ActiveValue::Set(
+                            driver_identity_docs.file_id_back.to_owned(),
+                        ),
+                        ..Default::default()
+                    },
+                )
+                .exec(&*tx)
+                .await
+                .expect("Failed to create DriverIdentityInputs");
+                Ok(())
             })
-            .await?;
+        })
+        .await?;
         Ok(())
     }
 
@@ -149,42 +145,41 @@ impl Documents for Database {
         driver_id: DriverId,
         vehicle_info: VehicleInfo,
     ) -> Result<(), AppError> {
-        let _ = self
-            .transaction(move |tx| {
-                let vehicle_type = vehicle_info.vehicle_type.to_owned();
-                let make = vehicle_info.make.to_owned();
-                let model = vehicle_info.model.to_owned();
-                let vin = vehicle_info.vin.to_owned();
-                let license_plate = vehicle_info.license_plate.to_owned();
-                let color = vehicle_info.color.to_owned();
-                let driver_id = driver_id.0.to_owned();
-                Box::pin(async move {
-                    let _ = vehicle::Entity::insert(vehicle::ActiveModel {
-                        id: sea_orm::ActiveValue::Set(ulid_string()),
-                        color: sea_orm::ActiveValue::Set(color),
-                        vehicle_type: sea_orm::ActiveValue::Set(vehicle_type),
-                        plate_number: sea_orm::ActiveValue::Set(license_plate),
-                        // category: todo!(),
-                        capacity: sea_orm::ActiveValue::Set(Some(
-                            vehicle_info.capacity,
-                        )),
-                        model: sea_orm::ActiveValue::Set(Some(model)),
-                        y_manufacturing: sea_orm::ActiveValue::Set(Some(
-                            vehicle_info.year,
-                        )),
-                        make: sea_orm::ActiveValue::Set(Some(make)),
-                        vin: sea_orm::ActiveValue::Set(vin),
-                        driver_id: sea_orm::ActiveValue::Set(driver_id),
-                        ..Default::default()
-                    })
-                    .exec(&*tx)
-                    .await?;
-
-                    Ok(())
+        self.transaction(move |tx| {
+            let vehicle_type = vehicle_info.vehicle_type.to_owned();
+            let make = vehicle_info.make.to_owned();
+            let model = vehicle_info.model.to_owned();
+            let vin = vehicle_info.vin.to_owned();
+            let license_plate = vehicle_info.license_plate.to_owned();
+            let color = vehicle_info.color.to_owned();
+            let driver_id = driver_id.0.to_owned();
+            Box::pin(async move {
+                let _ = vehicle::Entity::insert(vehicle::ActiveModel {
+                    id: sea_orm::ActiveValue::Set(ulid_string()),
+                    color: sea_orm::ActiveValue::Set(color),
+                    vehicle_type: sea_orm::ActiveValue::Set(vehicle_type),
+                    plate_number: sea_orm::ActiveValue::Set(license_plate),
+                    // category: todo!(),
+                    capacity: sea_orm::ActiveValue::Set(Some(
+                        vehicle_info.capacity,
+                    )),
+                    model: sea_orm::ActiveValue::Set(Some(model)),
+                    y_manufacturing: sea_orm::ActiveValue::Set(Some(
+                        vehicle_info.year,
+                    )),
+                    make: sea_orm::ActiveValue::Set(Some(make)),
+                    vin: sea_orm::ActiveValue::Set(vin),
+                    driver_id: sea_orm::ActiveValue::Set(driver_id),
+                    ..Default::default()
                 })
+                .exec(&*tx)
+                .await?;
+
+                Ok(())
             })
-            .await
-            .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        })
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
         Ok(())
     }
 }

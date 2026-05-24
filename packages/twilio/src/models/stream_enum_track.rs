@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// StreamEnumTrack : The tracks to be included in the Stream. Possible values are `inbound_track`, `outbound_track`, `both_tracks`. Default value is `inbound_track`.
 /// The tracks to be included in the Stream. Possible values are `inbound_track`, `outbound_track`, `both_tracks`. Default value is `inbound_track`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum StreamEnumTrack {
     #[serde(rename = "inbound_track")]
     InboundTrack,
@@ -21,7 +32,6 @@ pub enum StreamEnumTrack {
     OutboundTrack,
     #[serde(rename = "both_tracks")]
     BothTracks,
-
 }
 
 impl std::fmt::Display for StreamEnumTrack {
@@ -39,4 +49,3 @@ impl Default for StreamEnumTrack {
         Self::InboundTrack
     }
 }
-

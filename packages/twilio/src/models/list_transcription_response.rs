@@ -13,19 +13,35 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ListTranscriptionResponse {
-    #[serde(rename = "transcriptions", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "transcriptions",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub transcriptions: Option<Vec<models::ApiV2010AccountTranscription>>,
     #[serde(rename = "end", skip_serializing_if = "Option::is_none")]
     pub end: Option<i32>,
-    #[serde(rename = "first_page_uri", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "first_page_uri",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub first_page_uri: Option<String>,
-    #[serde(rename = "next_page_uri", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "next_page_uri",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_page_uri: Option<Option<String>>,
     #[serde(rename = "page", skip_serializing_if = "Option::is_none")]
     pub page: Option<i32>,
     #[serde(rename = "page_size", skip_serializing_if = "Option::is_none")]
     pub page_size: Option<i32>,
-    #[serde(rename = "previous_page_uri", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "previous_page_uri",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub previous_page_uri: Option<Option<String>>,
     #[serde(rename = "start", skip_serializing_if = "Option::is_none")]
     pub start: Option<i32>,
@@ -48,4 +64,3 @@ impl ListTranscriptionResponse {
         }
     }
 }
-

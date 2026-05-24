@@ -1,4 +1,6 @@
-use crate::types::{AndroidConfig, AndroidNotificationConfig, Notification, Platform};
+use crate::types::{
+    AndroidConfig, AndroidNotificationConfig, Notification, Platform,
+};
 
 #[derive(Debug, Default)]
 pub struct NotificationBuilder {
@@ -97,13 +99,12 @@ impl NotificationBuilder {
         let title = self.title.ok_or("title is required")?;
         let message = self.message.ok_or("message is required")?;
 
-        let has_android =
-            self.android_channel.is_some()
-                || self.android_color.is_some()
-                || self.android_click_action.is_some()
-                || self.android_tag.is_some();
+        let has_android = self.android_channel.is_some()
+            || self.android_color.is_some()
+            || self.android_click_action.is_some()
+            || self.android_tag.is_some();
 
-        let android = has_android.then(|| AndroidConfig {
+        let android = has_android.then_some(AndroidConfig {
             notification: Some(AndroidNotificationConfig {
                 channel_id: self.android_channel,
                 color: self.android_color,
@@ -169,11 +170,7 @@ mod tests {
 
     #[test]
     fn build_multiple_tokens_via_token() {
-        let n = base()
-            .token("tok_1")
-            .token("tok_2")
-            .build()
-            .unwrap();
+        let n = base().token("tok_1").token("tok_2").build().unwrap();
         assert_eq!(n.tokens, vec!["tok_abc", "tok_1", "tok_2"]);
     }
 
@@ -205,11 +202,8 @@ mod tests {
     #[test]
     fn build_with_topic_and_data() {
         let data = json!({ "ride_id": "abc123", "eta_minutes": 2 });
-        let n = base()
-            .topic("com.app.rider")
-            .data(data.clone())
-            .build()
-            .unwrap();
+        let n =
+            base().topic("com.app.rider").data(data.clone()).build().unwrap();
         assert_eq!(n.topic.as_deref(), Some("com.app.rider"));
         assert_eq!(n.data.as_ref().unwrap(), &data);
     }

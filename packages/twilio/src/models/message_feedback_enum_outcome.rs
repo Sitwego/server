@@ -13,13 +13,23 @@ use serde::{Deserialize, Serialize};
 
 /// MessageFeedbackEnumOutcome : Reported outcome indicating whether there is confirmation that the Message recipient performed a tracked user action. Can be: `unconfirmed` or `confirmed`. For more details see [How to Optimize Message Deliverability with Message Feedback](https://www.twilio.com/docs/messaging/guides/send-message-feedback-to-twilio).
 /// Reported outcome indicating whether there is confirmation that the Message recipient performed a tracked user action. Can be: `unconfirmed` or `confirmed`. For more details see [How to Optimize Message Deliverability with Message Feedback](https://www.twilio.com/docs/messaging/guides/send-message-feedback-to-twilio).
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum MessageFeedbackEnumOutcome {
     #[serde(rename = "confirmed")]
     Confirmed,
     #[serde(rename = "unconfirmed")]
     Unconfirmed,
-
 }
 
 impl std::fmt::Display for MessageFeedbackEnumOutcome {
@@ -36,4 +46,3 @@ impl Default for MessageFeedbackEnumOutcome {
         Self::Confirmed
     }
 }
-

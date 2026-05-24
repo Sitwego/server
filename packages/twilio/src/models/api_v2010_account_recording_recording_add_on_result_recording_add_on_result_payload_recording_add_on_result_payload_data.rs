@@ -12,9 +12,15 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ApiV2010AccountRecordingRecordingAddOnResultRecordingAddOnResultPayloadRecordingAddOnResultPayloadData {
+pub struct ApiV2010AccountRecordingRecordingAddOnResultRecordingAddOnResultPayloadRecordingAddOnResultPayloadData
+{
     /// The URL to redirect to to get the data returned by the AddOn that was previously stored.
-    #[serde(rename = "redirect_to", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "redirect_to",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub redirect_to: Option<Option<String>>,
 }
 
@@ -25,4 +31,3 @@ impl ApiV2010AccountRecordingRecordingAddOnResultRecordingAddOnResultPayloadReco
         }
     }
 }
-

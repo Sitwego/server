@@ -9,7 +9,7 @@ use tracing::info;
 use crate::schemas::{customer, driver};
 use crate::{
     api::profile::ProfileCreateObject,
-    schemas::profile::{self, ActiveModel},
+    schemas::profile::{self},
     types::ProfileId,
 };
 

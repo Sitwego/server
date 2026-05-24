@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// ConferenceEnumReasonConferenceEnded : The reason why a conference ended. When a conference is in progress, will be `null`. When conference is completed, can be: `conference-ended-via-api`, `participant-with-end-conference-on-exit-left`, `participant-with-end-conference-on-exit-kicked`, `last-participant-kicked`, or `last-participant-left`.
 /// The reason why a conference ended. When a conference is in progress, will be `null`. When conference is completed, can be: `conference-ended-via-api`, `participant-with-end-conference-on-exit-left`, `participant-with-end-conference-on-exit-kicked`, `last-participant-kicked`, or `last-participant-left`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum ConferenceEnumReasonConferenceEnded {
     #[serde(rename = "conference-ended-via-api")]
     ConferenceEndedViaApi,
@@ -25,15 +36,20 @@ pub enum ConferenceEnumReasonConferenceEnded {
     LastParticipantKicked,
     #[serde(rename = "last-participant-left")]
     LastParticipantLeft,
-
 }
 
 impl std::fmt::Display for ConferenceEnumReasonConferenceEnded {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::ConferenceEndedViaApi => write!(f, "conference-ended-via-api"),
-            Self::ParticipantWithEndConferenceOnExitLeft => write!(f, "participant-with-end-conference-on-exit-left"),
-            Self::ParticipantWithEndConferenceOnExitKicked => write!(f, "participant-with-end-conference-on-exit-kicked"),
+            Self::ConferenceEndedViaApi => {
+                write!(f, "conference-ended-via-api")
+            }
+            Self::ParticipantWithEndConferenceOnExitLeft => {
+                write!(f, "participant-with-end-conference-on-exit-left")
+            }
+            Self::ParticipantWithEndConferenceOnExitKicked => {
+                write!(f, "participant-with-end-conference-on-exit-kicked")
+            }
             Self::LastParticipantKicked => write!(f, "last-participant-kicked"),
             Self::LastParticipantLeft => write!(f, "last-participant-left"),
         }
@@ -45,4 +61,3 @@ impl Default for ConferenceEnumReasonConferenceEnded {
         Self::ConferenceEndedViaApi
     }
 }
-

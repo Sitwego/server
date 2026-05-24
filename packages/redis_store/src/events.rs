@@ -43,7 +43,9 @@ impl<'a> EventsManger<'a> {
 
 /// Idempotent: create all application consumer groups.
 /// Call once at startup before spawning any consumer tasks.
-pub async fn ensure_all_groups(redis: &RedisConnectionPool) -> Result<(), RedisError> {
+pub async fn ensure_all_groups(
+    redis: &RedisConnectionPool,
+) -> Result<(), RedisError> {
     let groups = [
         (RIDE_EVENTS_STREAM, RIDE_EVENTS_GROUP),
         (NEXT_DRIVER_OFFERS_STREAM, NEXT_DRIVER_OFFERS_GROUP),
@@ -59,7 +61,11 @@ pub async fn ensure_all_groups(redis: &RedisConnectionPool) -> Result<(), RedisE
 /// Boxed async handler: receives `(message_id, json_payload)`.
 /// Return `true` → message is ACKed.  Return `false` → stays in PEL for recovery.
 pub type EventHandlerFn = Box<
-    dyn Fn(String, String) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>>
+    dyn Fn(
+            String,
+            String,
+        )
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>>
         + Send
         + Sync,
 >;
@@ -88,17 +94,18 @@ pub async fn run_event_consumer(
     handler: EventHandlerFn,
 ) {
     loop {
-        let result: Result<XReadResponse<String, String, String, String>, _> = client
-            .xreadgroup_map(
-                group,
-                &consumer_name,
-                Some(10u64),    // COUNT
-                Some(5_000u64), // BLOCK ms
-                false,          // NOACK: false → entries enter the PEL until xack'd
-                stream,
-                ">",            // only messages not yet delivered to this group
-            )
-            .await;
+        let result: Result<XReadResponse<String, String, String, String>, _> =
+            client
+                .xreadgroup_map(
+                    group,
+                    &consumer_name,
+                    Some(10u64),    // COUNT
+                    Some(5_000u64), // BLOCK ms
+                    false, // NOACK: false → entries enter the PEL until xack'd
+                    stream,
+                    ">", // only messages not yet delivered to this group
+                )
+                .await;
 
         let response = match result {
             Ok(r) => r,
@@ -152,13 +159,26 @@ pub async fn run_recovery_pass(
 ) -> Result<(), RedisError> {
     use fred::types::streams::XReadValue;
 
-    let (cursor, values): (String, Vec<XReadValue<String, String, String>>) = client
-        .xautoclaim_values(stream, group, recovery_consumer, idle_ms, "0-0", Some(50u64), false)
-        .await
-        .map_err(RedisError::RedisStreamError)?;
+    let (cursor, values): (String, Vec<XReadValue<String, String, String>>) =
+        client
+            .xautoclaim_values(
+                stream,
+                group,
+                recovery_consumer,
+                idle_ms,
+                "0-0",
+                Some(50u64),
+                false,
+            )
+            .await
+            .map_err(RedisError::RedisStreamError)?;
 
     if !cursor.is_empty() && cursor != "0-0" {
-        tracing::debug!(stream, cursor, "xautoclaim returned mid-PEL cursor, next pass will continue");
+        tracing::debug!(
+            stream,
+            cursor,
+            "xautoclaim returned mid-PEL cursor, next pass will continue"
+        );
     }
 
     for (msg_id, fields) in values {
@@ -201,7 +221,6 @@ pub struct RideCancelPayload {
     pub note: String,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DriverArrivedEvent {
     pub event_id: String,
@@ -227,7 +246,6 @@ pub struct DriverArrivedPayload {
     pub actual_arrival_time: i64,
     pub wait_time_seconds: i32,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RideStartEvent {
@@ -304,7 +322,6 @@ pub struct Rating {
     pub comment: String,
     pub tags: Vec<String>,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GeoLocation {

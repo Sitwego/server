@@ -1,16 +1,12 @@
-use std::str::FromStr;
-
-use utils::http_reqwest::{Client, Error as HttpError};
-use utils::http_reqwest::{
-    HeaderMap as HeaderMapReqW, HeaderName, HeaderValue,
-};
+use utils::http_reqwest::Client;
 
 pub struct ReqwestClient {
+    #[allow(dead_code)]
     client: Client,
 }
 
 impl ReqwestClient {
-    pub fn new(base_url: &str, api_token: &str) -> Self {
+    pub fn new(_base_url: &str, _api_token: &str) -> Self {
         let vanilla_client = utils::http_reqwest::ReqwClient::new();
         Self {
             client: Client::from(vanilla_client),

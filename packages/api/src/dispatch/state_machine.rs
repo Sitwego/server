@@ -150,6 +150,7 @@ pub struct DriverAcquisitionResult {
 
 impl DispatchStateMachine {
     /// Creates a new DispatchStateMachine instance.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         mgr: Arc<DriverPoolManager>,
         request_id: String,
@@ -202,7 +203,7 @@ impl DispatchStateMachine {
             let penalty = penalty.unwrap_or(0.0);
 
             if let Err(e) =
-                self.mgr.release_driver(&driver_id, penalty, 500).await
+                self.mgr.release_driver(driver_id, penalty, 500).await
             {
                 error!(
                     request_id = %self.request_id,
@@ -231,7 +232,7 @@ impl DispatchStateMachine {
         let mut nearby_drivers = find_nearest_driver(
             self.mgr.redis.clone(),
             pickup_location,
-            &vehicle_type,
+            vehicle_type,
             &radius,
         )
         .await?;
@@ -718,7 +719,7 @@ impl DispatchStateMachine {
                 driver_id: driver.driver_id.0.to_string(),
                 score,
                 distance_km: dx,
-                vehicle_category: driver.vehicle_category.clone(),
+                vehicle_category: driver.vehicle_category,
                 coords: driver.coords,
             });
         }
@@ -755,7 +756,7 @@ impl DispatchStateMachine {
                     );
                 }
                 // Cleanup current offer if any
-                (&mut self).cleanup_current_offer(Some(0.5)).await;
+                self.cleanup_current_offer(Some(0.5)).await;
                 return DispatchResult::DeadlineExceeded;
             }
 
@@ -804,7 +805,7 @@ impl DispatchStateMachine {
                             );
                         }
                         // Cleanup current offer if any
-                        (&mut self).cleanup_current_offer(None).await;
+                        self.cleanup_current_offer(None).await;
                         return DispatchResult::MaxAttemptsReached;
                     }
 
@@ -978,7 +979,7 @@ impl DispatchStateMachine {
                                         driver_id = %current_driver_id,
                                         "Ride request canceled by rider"
                                     );
-                                    (&mut self).cleanup_current_offer(None).await;
+                                    self.cleanup_current_offer(None).await;
 
                                     return DispatchResult::CanceledRequest;
                                 }
@@ -1045,7 +1046,7 @@ impl DispatchStateMachine {
                                         request_id = %self.request_id,
                                         "Event channel closed"
                                     );
-                                    (&mut self).cleanup_current_offer(None).await;
+                                    self.cleanup_current_offer(None).await;
                                     return DispatchResult::ChannelClosed;
                                 }
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -1159,8 +1160,7 @@ impl DispatchStateMachine {
     }
 
     pub async fn start(self) -> DispatchResult {
-        let result = self.run().await;
-        result
+        self.run().await
     }
 
     async fn ride_request_timout_hadler(&mut self, driver_id: &str) {
@@ -1198,8 +1198,7 @@ impl DispatchStateMachine {
             .await
             .map_err(|err| AppError::InternalError(err.to_string()))?;
 
-        let _ = self
-            .api_ctx
+        self.api_ctx
             .db
             .create_ride_request(m, from, to, end_otp)
             .await

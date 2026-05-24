@@ -1,7 +1,7 @@
 use db_store::Database;
 use redis_store::r_types::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set};
+use sea_orm::ActiveValue::Set;
 use utils::gen_strings::ulid_string;
 
 use crate::schemas::ipn::ActiveModel;
@@ -9,6 +9,7 @@ use crate::schemas::ipn::ActiveModel;
 pub trait InstantPaymentNotification {
     type Error: Into<AppError>;
 
+    #[allow(clippy::too_many_arguments)]
     fn create_transaction(
         &self,
         checkout_request_id: String,
@@ -37,7 +38,7 @@ impl InstantPaymentNotification for Database {
         driver_id: String,
         payment_status: String,
     ) -> Result<(), Self::Error> {
-        let active_model = ActiveModel {
+        let _active_model = ActiveModel {
             id: Set(ulid_string()),
             checkout_request_id: Set(checkout_request_id),
             merchant_request_id: Set(merchant_request_id),

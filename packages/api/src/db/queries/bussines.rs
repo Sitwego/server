@@ -64,6 +64,7 @@ pub trait SubscriptionsPlans {
         Output = Result<Option<SubscriptionStatus>, AppError>,
     > + Send;
 
+    #[allow(clippy::too_many_arguments)]
     fn create_mpesa_transaction(
         &self,
         checkout_request_id: String,
@@ -435,7 +436,7 @@ impl SubscriptionsPlans for Database {
 
                     // Skip if on active free trial
                     let is_on_free_trial = sub.is_on_free_trial
-                        && sub.free_trial_end_date.map_or(true, |end| end >= now);
+                        && sub.free_trial_end_date.is_none_or(|end| end >= now);
                     if is_on_free_trial {
                         info!(
                             "Skipping driver {}, plan {}: on free trial",
@@ -630,18 +631,17 @@ impl SubscriptionsPlans for Database {
         &self,
         checkout_req_id: &str,
     ) -> Result<Option<ipn::Model>> {
-        Ok(self
-            .transaction(move |tx| {
-                let id = checkout_req_id.to_string();
-                Box::pin(async move {
-                    let payment = ipn::Entity::find()
-                        .filter(ipn::Column::CheckoutRequestId.eq(id))
-                        .one(&*tx)
-                        .await?;
-                    Ok(payment)
-                })
+        self.transaction(move |tx| {
+            let id = checkout_req_id.to_string();
+            Box::pin(async move {
+                let payment = ipn::Entity::find()
+                    .filter(ipn::Column::CheckoutRequestId.eq(id))
+                    .one(&*tx)
+                    .await?;
+                Ok(payment)
             })
-            .await?)
+        })
+        .await
     }
 
     async fn create_mpesa_transaction(

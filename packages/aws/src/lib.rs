@@ -82,8 +82,8 @@ impl AwsCredentials {
             .await
             .map_err(|err| AppError::InternalError(err.to_string()))?;
 
-        
-        let body: ByteStream = ByteStream::from(encrypted_img.ciphertext.clone());
+        let body: ByteStream =
+            ByteStream::from(encrypted_img.ciphertext.clone());
 
         client
             .put_object()
@@ -93,7 +93,6 @@ impl AwsCredentials {
             .send()
             .await
             .map_err(|err| {
-
                 println!("Error uploading file to S3: {:?}", err);
                 AppError::InternalError(err.to_string())
             })?;

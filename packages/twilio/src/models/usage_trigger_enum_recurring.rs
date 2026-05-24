@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// UsageTriggerEnumRecurring : The frequency of a recurring UsageTrigger.  Can be: `daily`, `monthly`, or `yearly` for recurring triggers or empty for non-recurring triggers. A trigger will only fire once during each period. Recurring times are in GMT.
 /// The frequency of a recurring UsageTrigger.  Can be: `daily`, `monthly`, or `yearly` for recurring triggers or empty for non-recurring triggers. A trigger will only fire once during each period. Recurring times are in GMT.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum UsageTriggerEnumRecurring {
     #[serde(rename = "daily")]
     Daily,
@@ -23,7 +34,6 @@ pub enum UsageTriggerEnumRecurring {
     Yearly,
     #[serde(rename = "alltime")]
     Alltime,
-
 }
 
 impl std::fmt::Display for UsageTriggerEnumRecurring {
@@ -42,4 +52,3 @@ impl Default for UsageTriggerEnumRecurring {
         Self::Daily
     }
 }
-

@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// CallRecordingEnumSource : How the recording was created. Can be: `DialVerb`, `Conference`, `OutboundAPI`, `Trunking`, `RecordVerb`, `StartCallRecordingAPI`, and `StartConferenceRecordingAPI`.
 /// How the recording was created. Can be: `DialVerb`, `Conference`, `OutboundAPI`, `Trunking`, `RecordVerb`, `StartCallRecordingAPI`, and `StartConferenceRecordingAPI`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum CallRecordingEnumSource {
     #[serde(rename = "DialVerb")]
     DialVerb,
@@ -29,7 +40,6 @@ pub enum CallRecordingEnumSource {
     StartCallRecordingApi,
     #[serde(rename = "StartConferenceRecordingAPI")]
     StartConferenceRecordingApi,
-
 }
 
 impl std::fmt::Display for CallRecordingEnumSource {
@@ -41,7 +51,9 @@ impl std::fmt::Display for CallRecordingEnumSource {
             Self::Trunking => write!(f, "Trunking"),
             Self::RecordVerb => write!(f, "RecordVerb"),
             Self::StartCallRecordingApi => write!(f, "StartCallRecordingAPI"),
-            Self::StartConferenceRecordingApi => write!(f, "StartConferenceRecordingAPI"),
+            Self::StartConferenceRecordingApi => {
+                write!(f, "StartConferenceRecordingAPI")
+            }
         }
     }
 }
@@ -51,4 +63,3 @@ impl Default for CallRecordingEnumSource {
         Self::DialVerb
     }
 }
-

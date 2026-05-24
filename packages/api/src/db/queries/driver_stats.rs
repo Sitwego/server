@@ -63,25 +63,23 @@ impl DriverStatsQueries for Database {
         &self,
         driver_id: String,
     ) -> utils::Result<()> {
-        let _ = self
-            .transaction(move |tx| {
-                let driver_id = driver_id.clone();
-                async move {
-                    let _ = driver_stats::Entity::insert(
-                        driver_stats::ActiveModel {
-                            driver_id: ActiveValue::set(driver_id),
-                            ..Default::default()
-                        },
-                    )
+        self.transaction(move |tx| {
+            let driver_id = driver_id.clone();
+            async move {
+                let _ =
+                    driver_stats::Entity::insert(driver_stats::ActiveModel {
+                        driver_id: ActiveValue::set(driver_id),
+                        ..Default::default()
+                    })
                     .exec(&*tx)
                     .await
                     .expect(
                         "Failed to insert driver stats into driver_stats table",
                     );
-                    Ok(())
-                }
-            })
-            .await?;
+                Ok(())
+            }
+        })
+        .await?;
         Ok(())
     }
 
@@ -118,7 +116,7 @@ impl DriverStatsQueries for Database {
         n: &i32,
     ) -> utils::Result<()> {
         update_stats_helper(
-            &self,
+            self,
             vec![(driver_stats::Column::TotalRides, *n)],
             &driver_id,
         )
@@ -131,7 +129,7 @@ impl DriverStatsQueries for Database {
         n: &i32,
     ) -> utils::Result<()> {
         update_stats_helper(
-            &self,
+            self,
             vec![(driver_stats::Column::TotalRidesAssigned, *n)],
             &driver_id,
         )
@@ -144,7 +142,7 @@ impl DriverStatsQueries for Database {
         n: &i32,
     ) -> utils::Result<()> {
         update_stats_helper(
-            &self,
+            self,
             vec![(driver_stats::Column::RidesCancelled, *n)],
             &driver_id,
         )
@@ -157,7 +155,7 @@ impl DriverStatsQueries for Database {
         n: &i32,
     ) -> utils::Result<()> {
         update_stats_helper(
-            &self,
+            self,
             vec![(driver_stats::Column::TotalEarnings, *n)],
             &driver_id.0,
         )

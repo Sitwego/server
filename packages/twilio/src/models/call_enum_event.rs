@@ -11,8 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+///
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum CallEnumEvent {
     #[serde(rename = "initiated")]
     Initiated,
@@ -22,7 +33,6 @@ pub enum CallEnumEvent {
     Answered,
     #[serde(rename = "completed")]
     Completed,
-
 }
 
 impl std::fmt::Display for CallEnumEvent {
@@ -41,4 +51,3 @@ impl Default for CallEnumEvent {
         Self::Initiated
     }
 }
-

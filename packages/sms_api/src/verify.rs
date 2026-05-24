@@ -126,20 +126,24 @@ impl TwilioVerifyClient {
             .await
             .map_err(HttpError::from)?;
 
-        let value = serde_json::from_slice::<serde_json::Value>(&raw).map_err(|e| {
-            tracing::warn!(
-                body = %String::from_utf8_lossy(&raw),
-                error = %e,
-                "Twilio Verify returned non-JSON body on send"
-            );
-            e
-        })?;
+        let value =
+            serde_json::from_slice::<serde_json::Value>(&raw).map_err(|e| {
+                tracing::warn!(
+                    body = %String::from_utf8_lossy(&raw),
+                    error = %e,
+                    "Twilio Verify returned non-JSON body on send"
+                );
+                e
+            })?;
 
         // Twilio error bodies carry an integer `status` (e.g. 404);
         // success bodies carry a string `status` (e.g. "pending").
         if value["status"].is_number() {
             let code = value["code"].as_u64().unwrap_or(0) as u32;
-            let msg = value["message"].as_str().unwrap_or("unknown error").to_string();
+            let msg = value["message"]
+                .as_str()
+                .unwrap_or("unknown error")
+                .to_string();
             tracing::warn!(to, error_code = code, message = %msg, "Twilio Verify send failed");
             return Err(map_error_code(code, msg));
         }
@@ -172,20 +176,24 @@ impl TwilioVerifyClient {
             .await
             .map_err(HttpError::from)?;
 
-        let value = serde_json::from_slice::<serde_json::Value>(&raw).map_err(|e| {
-            tracing::warn!(
-                body = %String::from_utf8_lossy(&raw),
-                error = %e,
-                "Twilio Verify returned non-JSON body on check"
-            );
-            e
-        })?;
+        let value =
+            serde_json::from_slice::<serde_json::Value>(&raw).map_err(|e| {
+                tracing::warn!(
+                    body = %String::from_utf8_lossy(&raw),
+                    error = %e,
+                    "Twilio Verify returned non-JSON body on check"
+                );
+                e
+            })?;
 
         // Twilio error bodies carry an integer `status` (e.g. 404);
         // success bodies carry a string `status` (e.g. "approved").
         if value["status"].is_number() {
             let code = value["code"].as_u64().unwrap_or(0) as u32;
-            let msg = value["message"].as_str().unwrap_or("unknown error").to_string();
+            let msg = value["message"]
+                .as_str()
+                .unwrap_or("unknown error")
+                .to_string();
             tracing::warn!(to, error_code = code, message = %msg, "Twilio Verify check failed");
             return Err(map_error_code(code, msg));
         }

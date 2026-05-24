@@ -1,5 +1,7 @@
 use crate::types::{AtRecipient, AtSmsRequest, AtSmsResponse, SmsMessage};
-use openapi::apis::api20100401_message_api::{CreateMessageError, CreateMessageParams};
+use openapi::apis::api20100401_message_api::{
+    CreateMessageError, CreateMessageParams,
+};
 use openapi::apis::configuration::Configuration as TwilioConfig;
 use thiserror::Error;
 use utils::http_reqwest::{Client, Error as HttpError, ReqwClient};
@@ -53,7 +55,10 @@ pub struct AfricasTalkingClient {
 }
 
 impl AfricasTalkingClient {
-    pub fn new(username: impl Into<String>, api_key: impl Into<String>) -> Self {
+    pub fn new(
+        username: impl Into<String>,
+        api_key: impl Into<String>,
+    ) -> Self {
         Self {
             username: username.into(),
             api_key: api_key.into(),
@@ -97,14 +102,15 @@ impl SmsSender for AfricasTalkingClient {
             .await
             .map_err(HttpError::from)?;
 
-        let resp = serde_json::from_slice::<AtSmsResponse>(&raw).map_err(|e| {
-            tracing::warn!(
-                body = %String::from_utf8_lossy(&raw),
-                error = %e,
-                "Africa's Talking returned non-JSON body"
-            );
-            e
-        })?;
+        let resp =
+            serde_json::from_slice::<AtSmsResponse>(&raw).map_err(|e| {
+                tracing::warn!(
+                    body = %String::from_utf8_lossy(&raw),
+                    error = %e,
+                    "Africa's Talking returned non-JSON body"
+                );
+                e
+            })?;
 
         let receipts = resp
             .sms_message_data
@@ -152,11 +158,18 @@ impl TwilioClient {
             basic_auth: Some((account_sid.clone(), Some(auth_token))),
             ..TwilioConfig::default()
         };
-        Self { account_sid, from: from.into(), config }
+        Self {
+            account_sid,
+            from: from.into(),
+            config,
+        }
     }
 
     #[cfg(test)]
-    pub(crate) fn with_base_path(mut self, base_path: impl Into<String>) -> Self {
+    pub(crate) fn with_base_path(
+        mut self,
+        base_path: impl Into<String>,
+    ) -> Self {
         self.config.base_path = base_path.into();
         self
     }
@@ -203,11 +216,12 @@ impl SmsSender for TwilioClient {
                 content_sid: None,
             };
 
-            let result = openapi::apis::api20100401_message_api::create_message(
-                &self.config,
-                params,
-            )
-            .await?;
+            let result =
+                openapi::apis::api20100401_message_api::create_message(
+                    &self.config,
+                    params,
+                )
+                .await?;
 
             if let Some(Some(ref err_msg)) = result.error_message {
                 tracing::warn!(
@@ -223,12 +237,15 @@ impl SmsSender for TwilioClient {
                 .status
                 .map(|s| format!("{s:?}"))
                 .unwrap_or_else(|| "unknown".into());
-            let to = result
-                .to
-                .and_then(|t| t)
-                .unwrap_or_else(|| number.clone());
+            let to =
+                result.to.and_then(|t| t).unwrap_or_else(|| number.clone());
 
-            receipts.push(SmsReceipt { to, message_id: sid, status, cost: None });
+            receipts.push(SmsReceipt {
+                to,
+                message_id: sid,
+                status,
+                cost: None,
+            });
         }
 
         Ok(receipts)
@@ -277,7 +294,9 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/version1/messaging"))
             .and(header("apiKey", "test-key"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(at_ok_body()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(at_ok_body()),
+            )
             .expect(1)
             .mount(&server)
             .await;
@@ -294,9 +313,8 @@ mod tests {
 
     #[tokio::test]
     async fn at_send_returns_http_err_on_connection_failure() {
-        let client =
-            AfricasTalkingClient::new("sandbox", "test-key")
-                .with_endpoint("http://127.0.0.1:1/version1/messaging");
+        let client = AfricasTalkingClient::new("sandbox", "test-key")
+            .with_endpoint("http://127.0.0.1:1/version1/messaging");
         let err = client.send(sample_msg()).await.unwrap_err();
         assert!(matches!(err, SmsError::Http(_)));
     }

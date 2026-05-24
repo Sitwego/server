@@ -43,14 +43,9 @@ impl ProcessStats {
         loop {
             tokio::select! {
               incoming_stats = p.sts_rx.recv() => {
-                match incoming_stats {
-                    Some(driver_id) => {
-                        let _ = p.update_driver_stats_with_retry(driver_id)
-                          .await;
-                    }
-                    None => {
-
-                    }
+                if let Some(driver_id) = incoming_stats {
+                    let _ = p.update_driver_stats_with_retry(driver_id)
+                      .await;
                 }
               },
               _ = timer.tick() => {

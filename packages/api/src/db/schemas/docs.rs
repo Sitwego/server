@@ -22,6 +22,7 @@ use strum_macros::{Display, EnumString};
     db_type = "Enum",
     enum_name = "driver_document_type"
 )]
+#[derive(Default)]
 pub enum DriverDocumentType {
     #[sea_orm(string_value = "DRIVING_LICENSE")]
     DrivingLicense,
@@ -36,6 +37,7 @@ pub enum DriverDocumentType {
     #[sea_orm(string_value = "KRA")]
     Kra,
     #[sea_orm(string_value = "NONE")]
+    #[default]
     None,
 }
 #[derive(
@@ -83,11 +85,6 @@ pub enum Relation {
 impl Related<super::driver::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Driver.def()
-    }
-}
-impl Default for DriverDocumentType {
-    fn default() -> Self {
-        DriverDocumentType::None
     }
 }
 impl ActiveModelBehavior for ActiveModel {}

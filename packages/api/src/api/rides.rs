@@ -229,12 +229,12 @@ pub async fn create_ride(
         .map_err(|err| AppError::InternalError(err.to_string()))?;
 
     if let Some((ride_request, _location_info)) = ride_request {
-        if let Some(otp) = ride_request.otp {
-            if body.start_otp != otp {
-                return Err(AppError::InternalError(
-                    "Invalid OTP provided".to_string(),
-                ));
-            }
+        if let Some(otp) = ride_request.otp
+            && body.start_otp != otp
+        {
+            return Err(AppError::InternalError(
+                "Invalid OTP provided".to_string(),
+            ));
         }
 
         let estimated_fare = ride_request.fare.to_f64().unwrap_or(0.0);
@@ -325,7 +325,10 @@ pub async fn create_ride(
                 (json, total)
             } else {
                 let estimated = ride_request.fare;
-                (serde_json::json!({ "estimated_fare": estimated }), estimated)
+                (
+                    serde_json::json!({ "estimated_fare": estimated }),
+                    estimated,
+                )
             };
 
         ctx.db
@@ -355,7 +358,7 @@ pub async fn create_ride(
             })?;
         Ok(StatusCode::OK)
     } else {
-        return Err(AppError::NotFound("Ride request not found".to_string()));
+        Err(AppError::NotFound("Ride request not found".to_string()))
     }
 }
 
@@ -740,7 +743,7 @@ pub async fn cancel_ride(
 
         Ok(StatusCode::OK)
     } else {
-        return Err(AppError::NotFound("Ride request not found".to_string()));
+        Err(AppError::NotFound("Ride request not found".to_string()))
     }
 }
 
@@ -868,7 +871,7 @@ pub async fn accept_ride_request(
                 err
             })?;
 
-            let (pickup_location, polyline, _2) = ride_info
+            let (pickup_location, polyline, _polyline_2) = ride_info
                 .ride_data
                 .as_ref()
                 .and_then(|ride_data| match ride_data {
@@ -926,43 +929,39 @@ pub async fn accept_ride_request(
             let existing =
                 ctx.db.get_ride_request_by_id(&ride_id).await.ok().flatten();
 
-            if let Some(ride) = existing {
-                if ride.driver_id == driver_id
-                    && ride.request_status == RideRequestStatus::Accepted
-                {
-                    tracing::info!(
-                        tag = "accept_ride_request",
-                        driver_id = %driver_id,
-                        ride_id = %ride_id.0,
-                        "Idempotent accept: ride already accepted by this driver"
-                    );
-                    let ride_info = get_ride_info(
-                        &ctx.redis,
-                        DriverId(driver_id.to_owned()),
-                    )
-                    .await;
-                    let (pickup_location, polyline) = ride_info
-                        .and_then(|info| info.ride_data)
-                        .and_then(|rd| match rd {
-                            RideData::Taxi {
-                                pickup_location,
-                                polyline,
-                                ..
-                            } => Some((pickup_location, polyline)),
-                            _ => None,
-                        })
-                        .map(|(p, poly)| (p, poly))
-                        .ok_or_else(|| {
-                            AppError::InternalError(
-                                "Ride info not in cache for idempotent accept"
-                                    .to_string(),
-                            )
-                        })?;
-                    return Ok(Json(AcceptedRideResp {
-                        pickup_location,
-                        polyline,
-                    }));
-                }
+            if let Some(ride) = existing
+                && ride.driver_id == driver_id
+                && ride.request_status == RideRequestStatus::Accepted
+            {
+                tracing::info!(
+                    tag = "accept_ride_request",
+                    driver_id = %driver_id,
+                    ride_id = %ride_id.0,
+                    "Idempotent accept: ride already accepted by this driver"
+                );
+                let ride_info =
+                    get_ride_info(&ctx.redis, DriverId(driver_id.to_owned()))
+                        .await;
+                let (pickup_location, polyline) = ride_info
+                    .and_then(|info| info.ride_data)
+                    .and_then(|rd| match rd {
+                        RideData::Taxi {
+                            pickup_location,
+                            polyline,
+                            ..
+                        } => Some((pickup_location, polyline)),
+                        _ => None,
+                    })
+                    .ok_or_else(|| {
+                        AppError::InternalError(
+                            "Ride info not in cache for idempotent accept"
+                                .to_string(),
+                        )
+                    })?;
+                return Ok(Json(AcceptedRideResp {
+                    pickup_location,
+                    polyline,
+                }));
             }
 
             tracing::warn!(
@@ -972,9 +971,9 @@ pub async fn accept_ride_request(
                 error_message = ?err,
                 "Ride offer no longer active (timed out, cancelled, or already accepted)"
             );
-            return Err(AppError::Gone(
+            Err(AppError::Gone(
                 "Ride offer is no longer available".to_string(),
-            ));
+            ))
         }
     }
 }
@@ -1232,10 +1231,10 @@ pub async fn driver_arrived_at_pickup_location(
             serde_json::json!({ "arrived_at": body.arrived_at }),
         ))
     } else {
-        return Err((
+        Err((
             StatusCode::NOT_FOUND,
             AppError::NotFound("Ride not found".to_string()),
-        ));
+        ))
     }
 }
 
@@ -1357,7 +1356,7 @@ pub async fn end_ride(
         })?;
         Ok(StatusCode::OK)
     } else {
-        return Ok(StatusCode::NOT_FOUND);
+        Ok(StatusCode::NOT_FOUND)
     }
 }
 

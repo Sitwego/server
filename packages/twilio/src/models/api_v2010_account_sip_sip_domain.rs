@@ -14,67 +14,172 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ApiV2010AccountSipSipDomain {
     /// The SID of the [Account](https://www.twilio.com/docs/iam/api/account) that created the SipDomain resource.
-    #[serde(rename = "account_sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "account_sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub account_sid: Option<Option<String>>,
     /// The API version used to process the call.
-    #[serde(rename = "api_version", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "api_version",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub api_version: Option<Option<String>>,
     /// The types of authentication you have mapped to your domain. Can be: `IP_ACL` and `CREDENTIAL_LIST`. If you have both defined for your domain, both will be returned in a comma delimited string. If `auth_type` is not defined, the domain will not be able to receive any traffic.
-    #[serde(rename = "auth_type", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "auth_type",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub auth_type: Option<Option<String>>,
     /// The date and time in GMT that the resource was created specified in [RFC 2822](https://www.ietf.org/rfc/rfc2822.txt) format.
-    #[serde(rename = "date_created", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "date_created",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub date_created: Option<Option<String>>,
     /// The date and time in GMT that the resource was last updated specified in [RFC 2822](https://www.ietf.org/rfc/rfc2822.txt) format.
-    #[serde(rename = "date_updated", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "date_updated",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub date_updated: Option<Option<String>>,
     /// The unique address you reserve on Twilio to which you route your SIP traffic. Domain names can contain letters, digits, and \"-\" and must end with `sip.twilio.com`.
-    #[serde(rename = "domain_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "domain_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub domain_name: Option<Option<String>>,
     /// The string that you assigned to describe the resource.
-    #[serde(rename = "friendly_name", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "friendly_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub friendly_name: Option<Option<String>>,
     /// The unique string that that we created to identify the SipDomain resource.
-    #[serde(rename = "sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sid: Option<Option<String>>,
     /// The URI of the resource, relative to `https://api.twilio.com`.
-    #[serde(rename = "uri", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "uri",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub uri: Option<Option<String>>,
     /// The HTTP method we use to call `voice_fallback_url`. Can be: `GET` or `POST`.
-    #[serde(rename = "voice_fallback_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_fallback_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_fallback_method: Option<Option<VoiceFallbackMethod>>,
     /// The URL that we call when an error occurs while retrieving or executing the TwiML requested from `voice_url`.
-    #[serde(rename = "voice_fallback_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_fallback_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_fallback_url: Option<Option<String>>,
     /// The HTTP method we use to call `voice_url`. Can be: `GET` or `POST`.
-    #[serde(rename = "voice_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_method: Option<Option<VoiceMethod>>,
     /// The HTTP method we use to call `voice_status_callback_url`. Either `GET` or `POST`.
-    #[serde(rename = "voice_status_callback_method", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_status_callback_method",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_status_callback_method: Option<Option<VoiceStatusCallbackMethod>>,
     /// The URL that we call to pass status parameters (such as call ended) to your application.
-    #[serde(rename = "voice_status_callback_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_status_callback_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_status_callback_url: Option<Option<String>>,
     /// The URL we call using the `voice_method` when the domain receives a call.
-    #[serde(rename = "voice_url", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "voice_url",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub voice_url: Option<Option<String>>,
     /// A list of mapping resources associated with the SIP Domain resource identified by their relative URIs.
-    #[serde(rename = "subresource_uris", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "subresource_uris",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub subresource_uris: Option<Option<serde_json::Value>>,
     /// Whether to allow SIP Endpoints to register with the domain to receive calls.
-    #[serde(rename = "sip_registration", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sip_registration",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sip_registration: Option<Option<bool>>,
     /// Whether emergency calling is enabled for the domain. If enabled, allows emergency calls on the domain from phone numbers with validated addresses.
-    #[serde(rename = "emergency_calling_enabled", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "emergency_calling_enabled",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub emergency_calling_enabled: Option<Option<bool>>,
     /// Whether secure SIP is enabled for the domain. If enabled, TLS will be enforced and SRTP will be negotiated on all incoming calls to this sip domain.
-    #[serde(rename = "secure", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "secure",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub secure: Option<Option<bool>>,
     /// The SID of the BYOC Trunk(Bring Your Own Carrier) resource that the Sip Domain will be associated with.
-    #[serde(rename = "byoc_trunk_sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "byoc_trunk_sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub byoc_trunk_sid: Option<Option<String>>,
     /// Whether an emergency caller sid is configured for the domain. If present, this phone number will be used as the callback for the emergency call.
-    #[serde(rename = "emergency_caller_sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "emergency_caller_sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub emergency_caller_sid: Option<Option<String>>,
 }
 
@@ -106,7 +211,18 @@ impl ApiV2010AccountSipSipDomain {
     }
 }
 /// The HTTP method we use to call `voice_fallback_url`. Can be: `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum VoiceFallbackMethod {
     #[serde(rename = "GET")]
     Get,
@@ -120,7 +236,18 @@ impl Default for VoiceFallbackMethod {
     }
 }
 /// The HTTP method we use to call `voice_url`. Can be: `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum VoiceMethod {
     #[serde(rename = "GET")]
     Get,
@@ -134,7 +261,18 @@ impl Default for VoiceMethod {
     }
 }
 /// The HTTP method we use to call `voice_status_callback_url`. Either `GET` or `POST`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum VoiceStatusCallbackMethod {
     #[serde(rename = "GET")]
     Get,
@@ -147,4 +285,3 @@ impl Default for VoiceStatusCallbackMethod {
         Self::Get
     }
 }
-

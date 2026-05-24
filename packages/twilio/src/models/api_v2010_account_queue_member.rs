@@ -14,22 +14,42 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ApiV2010AccountQueueMember {
     /// The SID of the [Call](https://www.twilio.com/docs/voice/api/call-resource) the Member resource is associated with.
-    #[serde(rename = "call_sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "call_sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub call_sid: Option<Option<String>>,
     /// The date that the member was enqueued, given in RFC 2822 format.
-    #[serde(rename = "date_enqueued", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "date_enqueued",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub date_enqueued: Option<Option<String>>,
     /// This member's current position in the queue.
     #[serde(rename = "position", skip_serializing_if = "Option::is_none")]
     pub position: Option<i32>,
     /// The URI of the resource, relative to `https://api.twilio.com`.
-    #[serde(rename = "uri", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "uri",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub uri: Option<Option<String>>,
     /// The number of seconds the member has been in the queue.
     #[serde(rename = "wait_time", skip_serializing_if = "Option::is_none")]
     pub wait_time: Option<i32>,
     /// The SID of the Queue the member is in.
-    #[serde(rename = "queue_sid", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "queue_sid",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub queue_sid: Option<Option<String>>,
 }
 
@@ -45,4 +65,3 @@ impl ApiV2010AccountQueueMember {
         }
     }
 }
-

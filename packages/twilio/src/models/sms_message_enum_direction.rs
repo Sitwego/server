@@ -11,8 +11,19 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+///
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum SmsMessageEnumDirection {
     #[serde(rename = "inbound")]
     Inbound,
@@ -22,7 +33,6 @@ pub enum SmsMessageEnumDirection {
     OutboundCall,
     #[serde(rename = "outbound-reply")]
     OutboundReply,
-
 }
 
 impl std::fmt::Display for SmsMessageEnumDirection {
@@ -41,4 +51,3 @@ impl Default for SmsMessageEnumDirection {
         Self::Inbound
     }
 }
-

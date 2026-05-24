@@ -84,19 +84,15 @@ impl DriverEarnings for Database {
         &self,
         dr_earnings_model: &driver_earning::Model,
     ) -> Result<(), AppError> {
-        let _ = self
-            .transaction(move |tx| {
-                let driver_earning_model = dr_earnings_model.clone();
-                async move {
-                    driver_earning_model
-                        .into_active_model()
-                        .insert(&*tx)
-                        .await?;
-                    Ok(())
-                }
-            })
-            .await
-            .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        self.transaction(move |tx| {
+            let driver_earning_model = dr_earnings_model.clone();
+            async move {
+                driver_earning_model.into_active_model().insert(&*tx).await?;
+                Ok(())
+            }
+        })
+        .await
+        .map_err(|err| AppError::DatabaseError(err.to_string()))?;
         Ok(())
     }
 

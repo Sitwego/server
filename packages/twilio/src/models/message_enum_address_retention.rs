@@ -13,13 +13,23 @@ use serde::{Deserialize, Serialize};
 
 /// MessageEnumAddressRetention : Determines if the address can be stored or obfuscated based on privacy settings
 /// Determines if the address can be stored or obfuscated based on privacy settings
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum MessageEnumAddressRetention {
     #[serde(rename = "retain")]
     Retain,
     #[serde(rename = "obfuscate")]
     Obfuscate,
-
 }
 
 impl std::fmt::Display for MessageEnumAddressRetention {
@@ -36,4 +46,3 @@ impl Default for MessageEnumAddressRetention {
         Self::Retain
     }
 }
-

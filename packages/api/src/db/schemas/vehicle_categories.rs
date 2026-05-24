@@ -64,8 +64,10 @@ impl ActiveModelBehavior for ActiveModel {
     DeriveActiveEnum,
 )]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "vehicle_category")]
+#[derive(Default)]
 pub enum VehicleCategory {
     #[sea_orm(string_value = "Swift")]
+    #[default]
     Swift,
     #[sea_orm(string_value = "Standard")]
     Standard,
@@ -79,11 +81,6 @@ pub enum VehicleCategory {
     Bike,
     #[sea_orm(string_value = "Women")]
     Women,
-}
-impl Default for VehicleCategory {
-    fn default() -> Self {
-        VehicleCategory::Swift
-    }
 }
 
 impl VehicleCategory {

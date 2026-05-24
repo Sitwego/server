@@ -13,7 +13,18 @@ use serde::{Deserialize, Serialize};
 
 /// MessageEnumDirection : The direction of the message. Can be: `inbound` for incoming messages, `outbound-api` for messages created by the REST API, `outbound-call` for messages created during a call, or `outbound-reply` for messages created in response to an incoming message.
 /// The direction of the message. Can be: `inbound` for incoming messages, `outbound-api` for messages created by the REST API, `outbound-call` for messages created during a call, or `outbound-reply` for messages created in response to an incoming message.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
 pub enum MessageEnumDirection {
     #[serde(rename = "inbound")]
     Inbound,
@@ -23,7 +34,6 @@ pub enum MessageEnumDirection {
     OutboundCall,
     #[serde(rename = "outbound-reply")]
     OutboundReply,
-
 }
 
 impl std::fmt::Display for MessageEnumDirection {
@@ -42,4 +52,3 @@ impl Default for MessageEnumDirection {
         Self::Inbound
     }
 }
-
