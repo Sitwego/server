@@ -8,6 +8,7 @@ pub mod db;
 pub mod dispatch;
 pub mod helper;
 pub mod jobs;
+pub mod middleware;
 pub mod migrations;
 pub mod notif;
 pub mod request;

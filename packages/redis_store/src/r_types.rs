@@ -68,6 +68,14 @@ pub enum AppError {
     Unauthorized(String),
     #[error("Gone: {0}")]
     Gone(String),
+    /// Returned by the rate limiter when a request exceeds its policy.
+    /// Carries `retry_after_seconds` so the middleware can populate
+    /// `Retry-After` and `X-RateLimit-Reset` headers cleanly.
+    #[error("Rate limit exceeded for {key}")]
+    TooManyRequests {
+        key: String,
+        retry_after_seconds: u64,
+    },
 }
 
 impl IntoResponse for AppError {
@@ -88,6 +96,25 @@ impl IntoResponse for AppError {
             ),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             AppError::Gone(msg) => (StatusCode::GONE, msg),
+            AppError::TooManyRequests {
+                key,
+                retry_after_seconds,
+            } => {
+                let body = format!(
+                    "{{\"success\":false,\"error\":\"rate_limit_exceeded\",\"key\":\"{}\",\"retry_after_seconds\":{}}}",
+                    key, retry_after_seconds
+                );
+                let mut resp =
+                    (StatusCode::TOO_MANY_REQUESTS, body).into_response();
+                if let Ok(v) = retry_after_seconds.to_string().parse() {
+                    resp.headers_mut().insert("Retry-After", v);
+                }
+                resp.headers_mut().insert(
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::HeaderValue::from_static("application/json"),
+                );
+                return resp;
+            }
         };
         (status, error_message).into_response()
     }

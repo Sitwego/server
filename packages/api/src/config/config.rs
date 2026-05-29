@@ -41,11 +41,40 @@ pub struct Config {
     pub twilio_verify_service_sid: String,
     /// Shared secret that clients must send in `X-Api-Key` to use the 2FA endpoints.
     pub otp_api_key: String,
+    /// Comma-separated list of trusted reverse-proxy IPs (e.g. HAProxy, LB).
+    /// The rate-limit middleware walks `X-Forwarded-For` right-to-left,
+    /// skipping these addresses to find the real client IP. Leave empty in
+    /// dev; in prod always set to the known ingress IPs or untrusted XFF
+    /// entries can spoof per-IP buckets.
+    #[serde(default)]
+    pub trusted_proxies: String,
 }
 
 impl Config {
     pub fn is_dev(&self) -> bool {
         matches!(self.app_env.as_str(), "dev" | "development" | "local")
+    }
+
+    /// Parse `trusted_proxies` from its CSV form into a list of `IpAddr`.
+    /// Malformed entries are skipped with a warning rather than panicking —
+    /// a typo in env config shouldn't take down the API.
+    pub fn parsed_trusted_proxies(&self) -> Vec<std::net::IpAddr> {
+        self.trusted_proxies
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| match s.parse() {
+                Ok(ip) => Some(ip),
+                Err(e) => {
+                    tracing::warn!(
+                        raw = s,
+                        error = %e,
+                        "trusted_proxies: skipping malformed entry"
+                    );
+                    None
+                }
+            })
+            .collect()
     }
 
     pub fn aws_credentials(&self) -> AwsCredentials {

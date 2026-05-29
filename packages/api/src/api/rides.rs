@@ -22,13 +22,10 @@ use time::OffsetDateTime;
 // use tokio::time::Duration;
 use tracing::{error_span, info, info_span, warn_span};
 use utils::{
-    Result, convert_seconds,
-    gen_strings::{self, ulid_string},
-    hashing_algo::{
+    Result, convert_seconds, gen_strings::{self, ulid_string}, hashing_algo::{
         DecryptingRecord, decrypt_data, deserialize_data_from_slice,
         extract_contact_info,
-    },
-    meters_to_km, seconds_to_minutes,
+    }, meters_to_km, round_to_nearest_ten, seconds_to_minutes
 };
 
 use crate::{
@@ -292,7 +289,7 @@ pub async fn create_ride(
 
         ctx.db
             .start_ride(
-                &DriverId(client_id),
+                &DriverId(client_id.to_owned()),
                 &ride_info.ride_id,
                 body.start_otp,
                 "KES".into(),
@@ -308,7 +305,13 @@ pub async fn create_ride(
                     err
                 ))
             })?;
-
+        info!(
+            tag = "Ride Started",
+            "Ride {} started for driver {} with fare's {:#?}",
+            ride_info.ride_id.0,
+            client_id,
+            body.fare_component
+        );
         let (fare_components_json, fare_total) =
             if let Some(fc) = body.fare_component {
                 let estimated_fare = ride_request.fare;
@@ -528,7 +531,7 @@ pub async fn send_ride_request(
     let request = RequestDriver {
         from: data.from,
         to: data.to,
-        fare: data.fare,
+        fare: round_to_nearest_ten(data.fare as f64) as i32,
         dx: data.dx,
         duration: data.duration,
         vehicle_type: data.vehicle_type,

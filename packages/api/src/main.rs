@@ -86,12 +86,14 @@ async fn main() -> Result<()> {
         )
         .route("/mpesa/callback", post(payment::mpesa_callback_url))
         .with_state(api_ctx.clone());
-    public_router = public_router.merge(auth_handlers());
+    public_router = public_router.merge(auth_handlers(api_ctx.clone()));
 
-    let auth_router: Router<()> =
-        Router::new().merge(handlers()).layer(ServiceBuilder::new().layer(
-            middleware::from_fn_with_state(api_ctx.clone(), auth_middleware),
-        ));
+    let auth_router: Router<()> = Router::new()
+        .merge(handlers(api_ctx.clone()))
+        .layer(ServiceBuilder::new().layer(middleware::from_fn_with_state(
+            api_ctx.clone(),
+            auth_middleware,
+        )));
 
     let app = public_router
         .merge(auth_router)

@@ -1,5 +1,6 @@
 pub mod events;
 pub mod r_types;
+pub mod rate_limit;
 pub mod redis;
 
 use crate::r_types::*;
