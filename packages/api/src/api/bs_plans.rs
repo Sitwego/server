@@ -61,15 +61,26 @@ pub async fn create_bs_plan(
                 auto_pay_status:
                     crate::schemas::subscriptions::AutoPayStatus::NotSet,
                 is_on_free_trial: q.ontrial,
-                // set this to seven days from now
-                // if on free trial do not set
-                plan_end_date: if q.ontrial {
-                    None
-                } else {
-                    Some(
-                        (chrono::Utc::now() + chrono::Duration::days(7)).into(),
-                    )
-                },
+                // plan_end_date anchors the active billing window: the billing
+                // job (update_due_amount) only charges subs whose window has
+                // not yet elapsed. Keep it Some(_) in both branches so the
+                // window is always well-defined — a NULL end-date would leave
+                // a sub eligible indefinitely if `is_on_free_trial` ever
+                // drifted out of sync with `free_trial_end_date`.
+                //
+                // On trial: align with free_trial_end_date (14 days). When the
+                //   trial ends, renewal logic should extend this by one
+                //   billing cycle.
+                // Otherwise: one standard 7-day billing cycle (matches
+                //   reset_subscription in db/queries/bussines.rs).
+                plan_end_date: Some(
+                    if q.ontrial {
+                        chrono::Utc::now() + chrono::Duration::days(14)
+                    } else {
+                        chrono::Utc::now() + chrono::Duration::days(7)
+                    }
+                    .into(),
+                ),
                 //set plan_start_date to now
                 plan_start_date: (chrono::Utc::now()).into(),
             },
