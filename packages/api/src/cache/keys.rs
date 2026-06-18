@@ -39,6 +39,16 @@ pub fn ride_path_key_id(path_id: &str) -> String {
     format!("ride::path::id::{path_id}")
 }
 
+/// Driver->pickup route geometry for a specific offer, keyed by ride + driver.
+/// Written at offer time (the line is computed there) and read once at accept
+/// by the driver who accepts, so it survives offers to other candidates.
+pub fn driver_to_pickup_path_key(
+    RideId(ride_id): &RideId,
+    DriverId(driver_id): &DriverId,
+) -> String {
+    format!("ride::d2p::path::{ride_id}-{driver_id}")
+}
+
 pub fn mpesa_c_key(checkout_req_id: &str, merchant_req_id: &str) -> String {
     format!("mpesa::key{}-{}", merchant_req_id, checkout_req_id)
 }

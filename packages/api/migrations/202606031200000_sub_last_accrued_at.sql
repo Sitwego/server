@@ -1,0 +1,1 @@
+ALTER TABLE subscriptions ADD COLUMN last_accrued_at TIMESTAMP WITH TIME ZONE;

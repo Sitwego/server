@@ -81,11 +81,13 @@ pub enum VehicleCategory {
     Bike,
     #[sea_orm(string_value = "Women")]
     Women,
+    #[sea_orm(string_value = "Auto")]
+    Auto,
 }
 
 impl VehicleCategory {
     /// Returns all request categories that a driver of `self` category is
-    /// eligible to serve. Bike and Women are exclusive — only an exact match.
+    /// eligible to serve. Bike, Women and Auto are exclusive — only an exact match.
     /// The remaining categories form a tier chain where a higher-tier driver
     /// can serve their own tier and all tiers below them:
     ///   Swift < Standard < Comfort < Xl < Executive
@@ -99,6 +101,7 @@ impl VehicleCategory {
         match self {
             VehicleCategory::Bike => vec![VehicleCategory::Bike],
             VehicleCategory::Women => vec![VehicleCategory::Women],
+            VehicleCategory::Auto => vec![VehicleCategory::Auto],
             VehicleCategory::Swift => vec![VehicleCategory::Swift],
             VehicleCategory::Standard => {
                 vec![VehicleCategory::Swift, VehicleCategory::Standard]

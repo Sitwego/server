@@ -29,14 +29,6 @@ pub async fn create_bs_plan(
     Path(plan_id): Path<String>,
     Json(_input_body): Json<InputBody>,
 ) -> Result<StatusCode, AppError> {
-    // let vehicle_category = headers
-    //     .get("vc")
-    //     .and_then(|header_value| header_value.to_str().ok())
-    //     .and_then(|vt_str| VehicleCategory::from_str(vt_str).ok())
-    //     .ok_or(AppError::InternalError(
-    //         "vt (VehicleCategory - Header) not found".to_string(),
-    //     ))?;
-
     let id = if let Some(id) = q.sub_id {
         id
     } else {

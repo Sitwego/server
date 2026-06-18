@@ -75,6 +75,7 @@ impl Documents for Database {
                     file_id: sea_orm::ActiveValue::Set(file_id.to_owned()),
                     nonce: sea_orm::ActiveValue::Set(nonce),
                     // KMS ciphertext blob — needed to recover the data key.
+                    is_active: sea_orm::ActiveValue::Set(true),
                     encrypted_key: sea_orm::ActiveValue::Set(encrypted_key),
                     metadata: sea_orm::ActiveValue::Set(
                         json!({"expiry": expiry.to_owned()}),
@@ -113,6 +114,7 @@ impl Documents for Database {
                         document_subtype: sea_orm::ActiveValue::Set(
                             driver_identity_docs.document_subtype.to_owned(),
                         ),
+                        is_active: sea_orm::ActiveValue::Set(true),
                         file_id_front: sea_orm::ActiveValue::Set(
                             driver_identity_docs.file_id_front.to_owned(),
                         ),

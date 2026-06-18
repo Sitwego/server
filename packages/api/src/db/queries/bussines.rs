@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use db_store::Database;
-use pathfinding::num_traits::ToPrimitive;
 use redis_store::r_types::AppError;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, entity::prelude::*};
@@ -35,12 +34,31 @@ pub trait SubscriptionsPlans {
         id: String,
     ) -> impl std::future::Future<Output = Result<subscriptions::Model>> + Send;
 
+    /// Start a driver's free trial as part of admin activation. The driver does
+    /// not pick a plan during onboarding, so the admin supplies `plan_id` here;
+    /// this creates the subscription on a `trial_days` free trial with the plan
+    /// marked active, going through the same [`create_bs_subscription`] upsert
+    /// path the public endpoint uses. On re-activation it reuses the driver's
+    /// existing subscription id (driver_id is UNIQUE) so the upsert UPDATES it.
+    fn start_driver_trial(
+        &self,
+        driver_id: &str,
+        plan_id: &str,
+        trial_days: i64,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+
     fn get_bs_subscription(
         &self,
         driver_id: DriverId,
     ) -> impl std::future::Future<
         Output = Result<Option<SubscriptionPlan>, AppError>,
     > + Send;
+
+    /// All available billing plans, for the admin to pick from when activating a
+    /// driver (the trial is started on the chosen plan).
+    fn list_plans(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<plans::Model>>> + Send;
 
     fn update_due_amount(
         &self,
@@ -50,6 +68,24 @@ pub trait SubscriptionsPlans {
         &self,
         driver_id: &str,
         sub_id: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+
+    /// Admin: suspend/reactivate a driver's billing by flipping `is_plan_active`
+    /// — the single gate the accrual job now respects. Suspending stops further
+    /// accrual; reactivating resumes it from the watermark.
+    fn set_plan_active(
+        &self,
+        driver_id: &str,
+        active: bool,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+
+    /// Admin: directly set a subscription's `amount_due` (e.g. a manual credit
+    /// or correction). Advances `last_accrued_at` to now so the next accrual run
+    /// does not re-bill rides already accounted for in this adjustment.
+    fn admin_adjust_amount_due(
+        &self,
+        sub_id: &str,
+        amount_due: Decimal,
     ) -> impl std::future::Future<Output = Result<()>> + Send;
 
     fn confirm_payment(
@@ -191,6 +227,53 @@ impl SubscriptionsPlans for Database {
             .await?;
         Ok(subscription)
     }
+
+    async fn start_driver_trial(
+        &self,
+        driver_id: &str,
+        plan_id: &str,
+        trial_days: i64,
+    ) -> Result<()> {
+        // driver_id is UNIQUE on subscriptions. On a first activation there is no
+        // row; on re-activation reuse the existing id so the upsert UPDATES it
+        // (a fresh id would collide with the UNIQUE(driver_id) constraint).
+        let existing_id = subscriptions::Entity::find()
+            .filter(subscriptions::Column::DriverId.eq(driver_id))
+            .one(self.conn())
+            .await?
+            .map(|s| s.id)
+            .unwrap_or_else(ulid_string);
+
+        let now = chrono::Utc::now();
+        let trial_end = (now + chrono::Duration::days(trial_days)).into();
+        // Mirrors the public create-subscriptions-plan?ontrial=true path.
+        self.create_bs_subscription(
+            SubscriptionsData {
+                driver_id: DriverId(driver_id.to_owned()),
+                plan_id: plan_id.to_owned(),
+                free_trial_end_date: Some(trial_end),
+                auto_pay_status: AutoPayStatus::NotSet,
+                is_on_free_trial: true,
+                // Anchor the billing window to the trial end (14 days). When the
+                // trial lapses, renewal logic extends it by a billing cycle.
+                plan_end_date: Some(trial_end),
+                plan_start_date: now.into(),
+            },
+            existing_id,
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn list_plans(&self) -> Result<Vec<plans::Model>> {
+        let plans = plans::Entity::find()
+            .order_by_asc(plans::Column::VehicleType)
+            .order_by_asc(plans::Column::Cost)
+            .all(self.conn())
+            .await?;
+        Ok(plans)
+    }
+
     async fn create_bs_plan(
         &self,
         sub_plan_data: SubPlanData,
@@ -310,6 +393,11 @@ impl SubscriptionsPlans for Database {
                     active_sub_model.plan_start_date = ActiveValue::Set(now);
                     active_sub_model.last_billed_at =
                         ActiveValue::Set(Some(now));
+                    // Move the accrual watermark to now: rides up to this point
+                    // were already billed and are now paid, so the next accrual
+                    // run must start fresh from here and not re-charge them.
+                    active_sub_model.last_accrued_at =
+                        ActiveValue::Set(Some(now));
                     active_sub_model.update(&*tx).await?;
                 }
                 Ok(())
@@ -319,30 +407,85 @@ impl SubscriptionsPlans for Database {
         Ok(())
     }
 
+    async fn set_plan_active(
+        &self,
+        driver_id: &str,
+        active: bool,
+    ) -> Result<()> {
+        self.transaction(move |tx| {
+            Box::pin(async move {
+                let subs = subscriptions::Entity::find()
+                    .filter(subscriptions::Column::DriverId.eq(driver_id))
+                    .all(&*tx)
+                    .await?;
+                let now = chrono::Utc::now().into();
+                for sub in subs {
+                    let mut active_model = sub.into_active_model();
+                    active_model.is_plan_active = ActiveValue::Set(active);
+                    active_model.updated_at = ActiveValue::Set(now);
+                    active_model.update(&*tx).await?;
+                }
+                Ok(())
+            })
+        })
+        .await
+    }
+
+    async fn admin_adjust_amount_due(
+        &self,
+        sub_id: &str,
+        amount_due: Decimal,
+    ) -> Result<()> {
+        self.transaction(move |tx| {
+            Box::pin(async move {
+                if let Some(sub) =
+                    subscriptions::Entity::find_by_id(sub_id).one(&*tx).await?
+                {
+                    let now = chrono::Utc::now().into();
+                    let mut active_model = sub.into_active_model();
+                    active_model.amount_due =
+                        ActiveValue::Set(Some(amount_due));
+                    active_model.last_accrued_at = ActiveValue::Set(Some(now));
+                    active_model.updated_at = ActiveValue::Set(now);
+                    active_model.update(&*tx).await?;
+                }
+                Ok(())
+            })
+        })
+        .await
+    }
+
     async fn update_due_amount(&self) -> Result<()> {
         self.transaction(move |tx| {
             Box::pin(async move {
-                // Fetch all active subscriptions with their plans
+                // This job normally runs once a day (midnight, Africa/Nairobi)
+                // and accrues the cost of each driver's rides on top of the
+                // existing amount_due. It does NOT advance last_billed_at — that
+                // only moves when the driver actually pays.
+                //
+                // The billing window for each subscription is anchored to its own
+                // `last_accrued_at` watermark (the instant up to which charges have
+                // been accrued), NOT to a fixed `now - 24h`. This makes the job
+                // self-healing: if a run is missed (server restart / cron downtime),
+                // the next run's window still stretches back to the last successful
+                // billing, so no ride-day is ever lost or double-counted regardless
+                // of when or in what order the job actually fires.
+                //
+                // `last_accrued_at` is advanced ONLY here and by payment-reset, so —
+                // unlike `updated_at` — it can't drift when unrelated subscription
+                // fields change. Existing rows were backfilled to deploy time by
+                // the migration; the `unwrap_or(updated_at)` below is just a safety
+                // net should the column ever be NULL (e.g. a freshly inserted sub).
+                // Gate accrual on `is_plan_active` alone. We deliberately do NOT
+                // gate on plan_end_date: that field is only pushed forward on
+                // payment, so using it here would stop accruing for a driver who
+                // keeps driving but hasn't paid yet — they'd ride free once the
+                // window lapsed. Not paying must grow the balance, not freeze it.
+                // Stopping a driver's billing is an explicit is_plan_active = false
+                // (suspension / cancellation), not a date silently sliding past.
                 let subs = subscriptions::Entity::find()
                     .find_also_related(plans::Entity)
-                    .filter(
-                        Condition::all()
-                            .add(
-                                Condition::any()
-                                    .add(
-                                        subscriptions::Column::PlanEndDate
-                                            .gte(OffsetDateTime::now_utc()),
-                                    )
-                                    .add(
-                                        subscriptions::Column::PlanEndDate
-                                            .is_null(),
-                                    ),
-                            )
-                            .add(
-                                subscriptions::Column::IsPlanActive
-                                    .eq(true),
-                            ),
-                    )
+                    .filter(subscriptions::Column::IsPlanActive.eq(true))
                     .all(&*tx)
                     .await?;
 
@@ -353,26 +496,30 @@ impl SubscriptionsPlans for Database {
 
                 let sub_len = subs.len();
 
-                // Fix #8: filter_map → map (always returned Some, never filtered anything)
                 let driver_ids = subs
                     .iter()
                     .map(|(sub, _)| sub.driver_id.clone())
                     .collect::<Vec<String>>();
 
-                // Fix #4: capture now once and reuse throughout to avoid timestamp drift
+                // Capture now once and reuse throughout to avoid timestamp drift.
                 let now: chrono::DateTime<chrono::FixedOffset> = chrono::Utc::now().into();
-                // Fix #6: renamed one_day_ago → lookback_start (window is 48h, not 1 day)
-                let lookback_start = now - chrono::Duration::hours(48);
-                let seven_days_ago = now - chrono::Duration::days(7);
 
-                // Fix #9: removed dead code — driver_ids cannot be empty when subs is non-empty
+                // Lower bound for the ride query: the oldest per-sub watermark.
+                // Each subscription is then filtered to rides after its own
+                // watermark below, so this only bounds how far back we fetch.
+                let oldest_watermark = subs
+                    .iter()
+                    .map(|(sub, _)| sub.last_accrued_at.unwrap_or(sub.updated_at))
+                    .min()
+                    .unwrap_or(now);
+
                 info!("Fetching rides for {} drivers", driver_ids.len());
 
                 let rides = ride::Entity::find()
                     .filter(
                         Condition::all()
                             .add(ride::Column::DriverId.is_in(driver_ids))
-                            .add(ride::Column::TripEndTime.gte(lookback_start))
+                            .add(ride::Column::TripEndTime.gt(oldest_watermark))
                             .add(ride::Column::TripEndTime.lte(now))
                             .add(ride::Column::Status.eq("Completed"))
                             .add(ride::Column::IsRideDuringFreeTrial.eq(false))
@@ -380,31 +527,25 @@ impl SubscriptionsPlans for Database {
                     .all(&*tx)
                     .await?;
 
-                // Note: no early return on empty rides — PerDay(no_ride_no_charge=false)
-                // must still charge active days even when there are no rides.
-                info!("Fetched {} rides in the lookback window", rides.len());
+                info!("Fetched {} rides since {}", rides.len(), oldest_watermark);
 
-                // Group rides by driver_id → UTC date → rides
-                // Fix #11: date_naive() instead of naive_local().date() (idiomatic, avoids
-                //          ambiguity with server local timezone)
-                let mut rides_by_driver_by_date: HashMap<String, HashMap<ChronoDate, Vec<ride::Model>>> =
+                // Collect each driver's completed-ride end times so we can window
+                // them per-subscription against that sub's own watermark.
+                let mut ride_times_by_driver: HashMap<String, Vec<chrono::DateTime<chrono::FixedOffset>>> =
                     HashMap::new();
                 for ride in rides {
                     if let Some(trip_end_time) = ride.trip_end_time {
-                        let date: ChronoDate = trip_end_time.date_naive();
-                        rides_by_driver_by_date
+                        ride_times_by_driver
                             .entry(ride.driver_id.clone())
                             .or_default()
-                            .entry(date)
-                            .or_default()
-                            .push(ride);
+                            .push(trip_end_time);
                     }
                 }
 
-                let mut updated_count = 0usize; // Fix #10: track actually-updated count
+                let mut updated_count = 0usize;
 
                 for (sub, plan) in subs {
-                    // Fix #5: handle missing plan gracefully instead of panicking with .expect()
+                    // Handle missing plan gracefully instead of panicking.
                     let plan = match plan {
                         Some(p) => p,
                         None => {
@@ -419,13 +560,7 @@ impl SubscriptionsPlans for Database {
                     let driver_id = sub.driver_id.clone();
                     let plan_id = sub.plan_id.clone();
 
-                    // Skip if updated within the last 24 hours
-                    if sub.updated_at >= now - chrono::Duration::hours(24) {
-                        info!("Skipping driver {}: updated_at is within 24 hours", driver_id);
-                        continue;
-                    }
-
-                    // Skip if plan hasn't started yet
+                    // Skip if plan hasn't started yet.
                     if sub.plan_start_date > now {
                         info!(
                             "Skipping driver {}, plan {}: plan_start_date is in the future",
@@ -434,7 +569,7 @@ impl SubscriptionsPlans for Database {
                         continue;
                     }
 
-                    // Skip if on active free trial
+                    // Skip if on active free trial.
                     let is_on_free_trial = sub.is_on_free_trial
                         && sub.free_trial_end_date.is_none_or(|end| end >= now);
                     if is_on_free_trial {
@@ -445,141 +580,69 @@ impl SubscriptionsPlans for Database {
                         continue;
                     }
 
-                    // Accumulate on top of existing unpaid balance
-                    let mut total_due = sub.amount_due.unwrap_or(Decimal::ZERO).to_f64().unwrap_or(0.0);
-
-                    // Billing window starts at last_billed_at, defaulting to 7 days ago
-                    let last_billed_date = sub.last_billed_at.unwrap_or(seven_days_ago);
-                    let last_billed_naive = last_billed_date.date_naive();
-
-                    let driver_rides = rides_by_driver_by_date.get(&driver_id);
-
-                    let total_rides: usize = driver_rides
-                        .map(|m| m.values().map(|v| v.len()).sum())
-                        .unwrap_or(0);
-                    info!(
-                        "Driver {}, plan {}: {} rides in the lookback window",
-                        driver_id, plan.id, total_rides
-                    );
-
-                    let cost = plan.cost.to_f64().unwrap_or(0.0);
-
-                    match plan.billing_type {
-                        BillingType::PerDay => {
-                            match plan.no_ride_no_charge {
-                                true => {
-                                    // Only charge for days with rides that are after last_billed_naive
-                                    // Fix #2: was counting all days in the map, ignoring last_billed_date
-                                    if let Some(rides_by_day) = driver_rides {
-                                        let unbilled_days = rides_by_day
-                                            .keys()
-                                            .filter(|date| **date > last_billed_naive)
-                                            .count() as f64;
-
-                                        if unbilled_days > 0.0 {
-                                            total_due += unbilled_days * cost;
-                                            info!(
-                                                "Driver {}, plan {}: {} unbilled ride-days, total_due={}",
-                                                driver_id, plan.id, unbilled_days, total_due
-                                            );
-                                            let mut active_model = sub.into_active_model();
-                                            active_model.amount_due = ActiveValue::Set(Some(
-                                                <Decimal as num_traits::FromPrimitive>::from_f64(total_due)
-                                                    .unwrap_or(Decimal::ZERO),
-                                            ));
-                                            active_model.updated_at = ActiveValue::Set(now);
-                                            active_model.update(&*tx).await?;
-                                            updated_count += 1;
-                                        } else {
-                                            info!(
-                                                "Driver {}: no new ride-days to bill (no_ride_no_charge=true)",
-                                                driver_id
-                                            );
-                                        }
-                                    } else {
-                                        info!(
-                                            "Driver {}: no rides in window, skipping (no_ride_no_charge=true)",
-                                            driver_id
-                                        );
-                                    }
-                                }
-                                false => {
-                                    // Fix #3: was just `continue` — charge for every active day
-                                    // since last billing, regardless of whether rides occurred
-                                    let days_since_billed = (now.date_naive() - last_billed_naive)
-                                        .num_days()
-                                        .max(0) as f64;
-
-                                    if days_since_billed > 0.0 {
-                                        total_due += days_since_billed * cost;
-                                        info!(
-                                            "Driver {}, plan {}: {} days since last billing, total_due={}",
-                                            driver_id, plan.id, days_since_billed, total_due
-                                        );
-                                        let mut active_model = sub.into_active_model();
-                                        active_model.amount_due = ActiveValue::Set(Some(
-                                            <Decimal as num_traits::FromPrimitive>::from_f64(total_due)
-                                                .unwrap_or(Decimal::ZERO),
-                                        ));
-                                        active_model.updated_at = ActiveValue::Set(now);
-                                        active_model.update(&*tx).await?;
-                                        updated_count += 1;
-                                    } else {
-                                        info!("Driver {}: already billed today, skipping", driver_id);
-                                    }
-                                }
-                            }
-                        }
-                        BillingType::PerRide => {
-                            let max_charge = plan.max_charge
-                                .and_then(|v| v.to_f64())
-                                .unwrap_or(f64::MAX);
-
-                            if let Some(daily_rides) = driver_rides {
-                                for (date, n_ride) in daily_rides {
-                                    if n_ride.is_empty() {
-                                        continue;
-                                    }
-                                    // Skip already-billed dates
-                                    // Fix #2: was `< last_billed_naive` which would re-bill
-                                    //         the last billed day on every subsequent run
-                                    if *date <= last_billed_naive {
-                                        info!(
-                                            "Skipping driver {}, plan {}: date {} already billed (last_billed={})",
-                                            driver_id, plan.id, date, last_billed_naive
-                                        );
-                                        continue;
-                                    }
-                                    let n_ride_count = n_ride.len() as f64;
-                                    let max_rides = plan.max_rides.unwrap_or(i32::MAX) as f64;
-                                    let daily_cost = (n_ride_count.min(max_rides) * cost).min(max_charge);
-                                    info!(
-                                        "Driver {}, plan {}: {} rides on {}, daily_cost={}",
-                                        driver_id, plan.id, n_ride_count, date, daily_cost
-                                    );
-                                    total_due += daily_cost;
-                                }
-
-                                info!(
-                                    "Driver {}, plan {}: total_due={}",
-                                    driver_id, plan.id, total_due
-                                );
-                                let mut active_model = sub.into_active_model();
-                                active_model.amount_due = ActiveValue::Set(Some(
-                                    <Decimal as num_traits::FromPrimitive>::from_f64(total_due)
-                                        .unwrap_or(Decimal::ZERO),
-                                ));
-                                active_model.updated_at = ActiveValue::Set(now);
-                                active_model.update(&*tx).await?;
-                                updated_count += 1;
-                            } else {
-                                info!("Driver {}: no rides in window for PerRide billing", driver_id);
+                    // Window this sub's rides to those after its own watermark and
+                    // bucket them by UTC date. A multi-day window (e.g. after a
+                    // missed run) yields multiple days, each billed in full.
+                    let watermark = sub.last_accrued_at.unwrap_or(sub.updated_at);
+                    let mut rides_per_day: HashMap<chrono::NaiveDate, i64> =
+                        HashMap::new();
+                    if let Some(times) = ride_times_by_driver.get(&driver_id) {
+                        for t in times {
+                            if *t > watermark {
+                                *rides_per_day.entry(t.date_naive()).or_default() += 1;
                             }
                         }
                     }
+
+                    // Business rule: no ride, no charge — applies to every plan
+                    // type. A driver is only billed for days they actually drove.
+                    if rides_per_day.is_empty() {
+                        info!("Driver {}: no new rides since last billing, no charge", driver_id);
+                        continue;
+                    }
+
+                    let cost = plan.cost;
+                    let existing_due = sub.amount_due.unwrap_or(Decimal::ZERO);
+                    let ride_count: i64 = rides_per_day.values().sum();
+
+                    let charge = match plan.billing_type {
+                        // Flat per active day: one day's price for each distinct
+                        // day the driver drove, regardless of rides taken that day.
+                        BillingType::PerDay => {
+                            cost * Decimal::from(rides_per_day.len() as i64)
+                        }
+                        // Per ride, billed per day: cap rides at max_rides and the
+                        // charge at max_charge for each day, then sum across days.
+                        BillingType::PerRide => {
+                            let max_rides =
+                                plan.max_rides.map(|m| m as i64).unwrap_or(i64::MAX);
+                            rides_per_day.values().fold(Decimal::ZERO, |acc, &n| {
+                                let chargeable = n.min(max_rides);
+                                let day_charge = Decimal::from(chargeable) * cost;
+                                let day_charge = match plan.max_charge {
+                                    Some(cap) => day_charge.min(cap),
+                                    None => day_charge,
+                                };
+                                acc + day_charge
+                            })
+                        }
+                    };
+
+                    let total_due = existing_due + charge;
+                    info!(
+                        "Driver {}, plan {}: {} rides over {} day(s), charge={}, total_due={}",
+                        driver_id, plan.id, ride_count, rides_per_day.len(), charge, total_due
+                    );
+
+                    let mut active_model = sub.into_active_model();
+                    active_model.amount_due = ActiveValue::Set(Some(total_due));
+                    active_model.updated_at = ActiveValue::Set(now);
+                    // Advance the watermark so the next run starts after this point.
+                    active_model.last_accrued_at = ActiveValue::Set(Some(now));
+                    active_model.update(&*tx).await?;
+                    updated_count += 1;
                 }
 
-                // Fix #10: log actual updated count, not total fetched count
                 info!("Processed {} subscriptions, updated {}", sub_len, updated_count);
 
                 Ok(())

@@ -132,6 +132,36 @@ async fn main() -> Result<()> {
         .await
         .expect("failed to start job scheduler");
 
+    // Private admin plane (Option B). Opt-in: starts only when an internal
+    // token is configured. Bound to a private interface (loopback by default)
+    // so it is unreachable from the public internet — only the co-located admin
+    // BFF, which carries `X-Internal-Token`, can call it.
+    if !api_ctx.config.admin_internal_token.is_empty() {
+        let admin_ctx = api_ctx.clone();
+        let admin_bind = format!(
+            "{}:{}",
+            admin_ctx.config.effective_admin_bind_addr(),
+            admin_ctx.config.admin_port
+        );
+        let admin_app =
+            api::api::admin::admin_handlers(admin_ctx).into_make_service();
+        tokio::spawn(async move {
+            match TcpListener::bind(&admin_bind).await {
+                Ok(l) => {
+                    info!("🔒 Private admin plane on http://{admin_bind}");
+                    if let Err(e) = axum::serve(l, admin_app).await {
+                        tracing::error!("admin server error: {e}");
+                    }
+                }
+                Err(e) => tracing::error!(
+                    "failed to bind admin listener on {admin_bind}: {e}"
+                ),
+            }
+        });
+    } else {
+        info!("Admin plane disabled (ADMIN_INTERNAL_TOKEN not set)");
+    }
+
     let listener = TcpListener::bind(&address).await.unwrap();
     info!("🚀 Server running at http://localhost:{}", address.port());
     axum::serve(listener, app.into_make_service())

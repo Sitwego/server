@@ -19,7 +19,9 @@ use crate::{
     auth_token::Claims,
     queries::{
         bussines::{SubscriptionStatus, SubscriptionsPlans},
-        drivers::{DriverQueries, DriverVehicleAndCategories},
+        drivers::{
+            DriverCategorySelection, DriverQueries, DriverVehicleAndCategories,
+        },
     },
     types::{DriverId, VehicleCategory},
 };
@@ -228,14 +230,16 @@ pub async fn logout_driver(
 pub async fn get_driver_categories(
     Extension(ctx): Extension<Arc<APIContext>>,
     Extension(driver_id): Extension<String>,
-) -> Result<Response<Vec<VehicleCategory>>, AppError> {
+) -> Result<Response<Vec<DriverCategorySelection>>, AppError> {
     let categories = ctx.db.get_driver_categories(&DriverId(driver_id)).await?;
     Ok(Response::OK(categories))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SetCategoriesBody {
-    pub vehicle_id: String,
+    /// The categories the driver chooses to currently serve. Must be a subset of
+    /// the categories the admin assigned to the vehicle; anything else is
+    /// rejected. Categories the admin assigned but omitted here are switched off.
     pub categories: Vec<VehicleCategory>,
 }
 
@@ -245,11 +249,7 @@ pub async fn set_driver_categories(
     Json(body): Json<SetCategoriesBody>,
 ) -> Result<StatusCode, AppError> {
     ctx.db
-        .set_driver_categories(
-            &DriverId(driver_id),
-            &body.vehicle_id,
-            &body.categories,
-        )
+        .set_driver_active_categories(&DriverId(driver_id), &body.categories)
         .await?;
     Ok(StatusCode::OK)
 }
