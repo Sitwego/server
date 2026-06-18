@@ -476,6 +476,32 @@ impl DispatchStateMachine {
             (vec![], 0.0, 0)
         };
 
+        // Persist this candidate's driver->pickup geometry (as computed:
+        // pickup->driver order) so the accept handler can expose it to the
+        // customer as p2 (approach-phase marker). Stored by reference here —
+        // `t` is still moved into the notification below. Keyed by
+        // (ride, driver) so an offer to a non-accepting candidate never
+        // shadows the accepting driver's leg. Best-effort.
+        if !t.is_empty() {
+            let d2p_key = crate::cache::keys::driver_to_pickup_path_key(
+                &crate::RideId(self.request_id.clone()),
+                &crate::DriverId(result.driver_id.clone()),
+            );
+            if let Err(e) = self
+                .api_ctx
+                .redis
+                .set_key(&d2p_key, &t, self.api_ctx.config.exp_ttl)
+                .await
+            {
+                error!(
+                    request_id = %self.request_id,
+                    driver_id = %result.driver_id,
+                    error = ?e,
+                    "Failed to persist driver->pickup path for accept"
+                );
+            }
+        }
+
         let estimated_ride_start_time =
             OffsetDateTime::now_utc() + time::Duration::milliseconds(dt as i64);
 

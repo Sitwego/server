@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod bussines;
 pub mod customer;
 pub mod docs;
@@ -9,5 +10,7 @@ pub mod ipn;
 pub mod preferences;
 pub mod profile;
 pub mod rating;
+pub mod referral;
 pub mod ride;
 pub mod ride_fare;
+pub mod wallet;

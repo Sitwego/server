@@ -5,16 +5,17 @@ use axum::{
 };
 use chrono::Utc;
 use futures::future::join_all;
-use geo::{Distance, Haversine, Point};
+use geo::{Bearing, Distance, Haversine, Point};
 use num_traits::ToPrimitive;
 use redis_store::{
     events::{
-        DriverArrivedEvent, DriverArrivedEventPayload, DriverArrivedPayload,
-        EventPayload, GeoLocation, RIDE_EVENTS_STREAM, RideCancelPayload,
-        RideCanceledEvent, RideEndEvent, RideEndEventPayload, RideEndPayload,
-        RideStartEvent, RideStartEventPayload, RideStartPayload,
+        DRIVER_LOCATION_CHANGE_CHANNEL, DriverArrivedEvent,
+        DriverArrivedEventPayload, DriverArrivedPayload, EventPayload,
+        GeoLocation, RIDE_EVENTS_STREAM, RideCancelPayload, RideCanceledEvent,
+        RideEndEvent, RideEndEventPayload, RideEndPayload, RideStartEvent,
+        RideStartEventPayload, RideStartPayload,
     },
-    r_types::GeoPoint,
+    r_types::{GeoPoint, LocationEvent},
 };
 use serde::{Deserialize, Serialize};
 use std::{pin::Pin, sync::Arc};
@@ -22,10 +23,13 @@ use time::OffsetDateTime;
 // use tokio::time::Duration;
 use tracing::{error_span, info, info_span, warn_span};
 use utils::{
-    Result, convert_seconds, gen_strings::{self, ulid_string}, hashing_algo::{
+    Result, convert_seconds,
+    gen_strings::{self, ulid_string},
+    hashing_algo::{
         DecryptingRecord, decrypt_data, deserialize_data_from_slice,
         extract_contact_info,
-    }, meters_to_km, round_to_nearest_ten, seconds_to_minutes
+    },
+    meters_to_km, round_to_nearest_ten, seconds_to_minutes,
 };
 
 use crate::{
@@ -388,8 +392,11 @@ pub async fn ride_fair_estimation(
 
     #[cfg(feature = "reqwest-middleware")]
     let (line_str, dx, dr) = {
-        let base_url = std::env::var("ROUTES_API_URL")
-            .expect("ROUTES_API_URL must be set");
+        let base_url = if ctx.config.is_dev() {
+            "http://127.0.0.1:5000".to_string()
+        } else {
+            std::env::var("ROUTES_API_URL").expect("ROUTES_API_URL must be set")
+        };
         let route_query = RidesApiClient::new_with_retry(&base_url, None);
         let coords = [
             (from.geo_point.lon.0, from.geo_point.lat.0),
@@ -838,6 +845,28 @@ pub async fn accept_ride_request(
                 }
             };
 
+            // Driver->pickup leg persisted at offer time (see state_machine
+            // get_eta ~L460), keyed by this driver so we read back THIS
+            // driver's leg. Stored pickup->driver; reverse to driver->pickup so
+            // the line ends at the pickup, matching p1's "ends at destination"
+            // convention. Exposed to the customer as p2 for the approach-phase
+            // marker; absence just omits the leg.
+            let driver_to_pickup_polyline = ctx
+                .redis
+                .get_key::<Vec<(f64, f64)>>(
+                    &crate::cache::keys::driver_to_pickup_path_key(
+                        &ride_id,
+                        &DriverId(driver_id.to_owned()),
+                    ),
+                )
+                .await
+                .ok()
+                .flatten()
+                .map(|mut line| {
+                    line.reverse();
+                    line
+                });
+
             let ride_info = RideInfo {
                 vehicle_category: vc,
                 ride_id: ride_id.to_owned(),
@@ -845,7 +874,7 @@ pub async fn accept_ride_request(
                 ride_data: Some(RideData::Taxi {
                     pickup_location: (from.lat.0, from.lon.0).into(),
                     polyline: Some(p),
-                    polyline_2: None,
+                    polyline_2: driver_to_pickup_polyline,
                 }),
                 estimated_pickup_time: Some(
                     requested_ride.estimated_duration_to_pickup.unwrap_or(0)
@@ -1372,6 +1401,14 @@ type RideParams = (
     Vec<VehicleCategory>,
 );
 
+/// Distance-to-pickup thresholds (meters) for customer proximity notifications.
+const PICKUP_ARRIVED_THRESHOLD_M: f64 = 50.0;
+const PICKUP_ARRIVING_THRESHOLD_M: f64 = 300.0;
+/// Fixes with a worse (larger) accuracy radius than this can't advance the
+/// notification state — it's a forward-only ratchet, so one noisy fix would
+/// otherwise fire a false "driver arrived" push for good.
+const PICKUP_NOTIFICATION_MAX_ACCURACY_M: f64 = 50.0;
+
 fn next_notification_state(
     ride_status: Option<&RideRequestStatus>,
     current: Option<RideNotificationState>,
@@ -1380,16 +1417,18 @@ fn next_notification_state(
     let Some(RideRequestStatus::Accepted) = ride_status else {
         return (None, None);
     };
-    let Some(current) = current else {
-        return (None, None);
-    };
+    let current = current.unwrap_or(RideNotificationState::Idle);
     let Some(distance) = distance_to_pickup else {
         return (None, Some(current));
     };
 
     let target = match distance.0 {
-        d if d <= 40.0 => RideNotificationState::DriverArrived,
-        d if d <= 100.0 => RideNotificationState::DriverArriving,
+        d if d <= PICKUP_ARRIVED_THRESHOLD_M => {
+            RideNotificationState::DriverArrived
+        }
+        d if d <= PICKUP_ARRIVING_THRESHOLD_M => {
+            RideNotificationState::DriverArriving
+        }
         _ => RideNotificationState::DriverOnTheWay,
     };
 
@@ -1431,6 +1470,14 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
             _ => None,
         });
 
+    let pickup_location =
+        ride_data.as_ref().map(|ride_data| match ride_data {
+            RideData::Taxi { pickup_location, .. }
+            | RideData::Ridepooling { pickup_location, .. } => {
+                *pickup_location
+            }
+        });
+
     let driver_last_recorded_location =
         driver_location_info.as_ref().map(|info| info.position_info.clone());
 
@@ -1456,11 +1503,37 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
         distance: current_driver_location.distance,
     };
 
+    let accuracy_ok = current_driver_location
+        .accuracy
+        .map(|a| a.0 <= PICKUP_NOTIFICATION_MAX_ACCURACY_M)
+        .unwrap_or(true);
+
+    let distance_to_pickup = if accuracy_ok {
+        pickup_location
+            .map(|pickup| {
+                // pickup_location is stored as Point::new(lat, lon), while
+                // Haversine expects (x = lon, y = lat) — swap on both sides.
+                Meters(Haversine::distance(
+                    Point::new(
+                        current_driver_location.lat_lng.lon.0,
+                        current_driver_location.lat_lng.lat.0,
+                    ),
+                    Point::new(pickup.y(), pickup.x()),
+                ))
+            })
+            // Fall back to the app-reported distance only when no pickup
+            // location is cached for the ride.
+            .or(current_driver_location.distance)
+    } else {
+        None
+    };
+
     let (dst, r_status) = next_notification_state(
         ride_status.as_ref(),
         distance_notification_status,
-        current_driver_location.distance,
+        distance_to_pickup,
     );
+
 
     #[allow(clippy::type_complexity)]
     let mut job_tasks: Vec<
@@ -1540,7 +1613,7 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
             &position_info,
             &ride_status.clone(),
             &r_status,
-            &Some(Meters(dst.unwrap_or_default())),
+            &dst.map(Meters),
             &ctx.config.exp_ttl,
         )
         .await?;
@@ -1548,6 +1621,148 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
     };
 
     job_tasks.push(Box::pin(update_driver_location_info));
+
+    // Notify the customer as the driver closes in on the pickup point. The
+    // state is a forward-only ratchet, so a strict increase fires each
+    // proximity push at most once per ride; Idle -> DriverOnTheWay stays
+    // silent (the customer already knows the ride was accepted).
+    let prev_notification_state = distance_notification_status
+        .unwrap_or(RideNotificationState::Idle);
+    if let (Some(ride_id), Some(new_state)) = (ride_id.as_ref(), r_status)
+        && new_state > prev_notification_state
+        && new_state >= RideNotificationState::DriverArriving
+    {
+        let ctx_clone = ctx.clone();
+        let driver_id_clone = driver_id.clone();
+        let ride_id_clone = ride_id.clone();
+        let notify_customer = async move {
+            let ride = match ctx_clone
+                .db
+                .get_ride_request_by_id(&ride_id_clone)
+                .await
+            {
+                Ok(Some(ride)) => ride,
+                Ok(None) => return Ok(()),
+                // A failed push must not fail the location update.
+                Err(err) => {
+                    tracing::warn!(
+                        "Failed to load ride {} for proximity notification: {:?}",
+                        ride_id_clone.0,
+                        err
+                    );
+                    return Ok(());
+                }
+            };
+            let driver_display_name = ctx_clone
+                .db
+                .get_driver_display_name(&driver_id_clone.0)
+                .await;
+            let customer_id = ride.customer_id.clone();
+            crate::notif::spawn_notify(
+                ctx_clone.db.clone(),
+                ctx_clone.notif.clone(),
+                customer_id.clone(),
+                move |b| {
+                    let b = if new_state
+                        == RideNotificationState::DriverArrived
+                    {
+                        b.title("Your driver has arrived! 🚗").message(
+                            format!(
+                                "{} is waiting at your pickup location.",
+                                driver_display_name
+                            ),
+                        )
+                    } else {
+                        b.title("Your driver is almost there! 🚗").message(
+                            format!(
+                                "{} is arriving at your pickup location.",
+                                driver_display_name
+                            ),
+                        )
+                    };
+                    // Same tag as the manual arrived endpoint so a later
+                    // "arrived" push replaces this one on the device.
+                    b.android_channel("on-driver-arrival")
+                        .android_color("#ed1380")
+                        .android_tag(format!(
+                            "driver-arrival-{}",
+                            customer_id
+                        ))
+                        .click_action("OPEN_RIDE_TRACKING")
+                        .high_priority()
+                        .content_available()
+                },
+            );
+            Ok::<(), AppError>(())
+        };
+        job_tasks.push(Box::pin(notify_customer));
+    }
+
+    // Stream the newest fix to rider app for map ui: the notification
+    // service subscribes to this channel and fans it out to the rider's
+    // WatchDriverLocationChanges gRPC stream by ride_id.
+    if let (Some(ride_id), Some(status)) =
+        (ride_id.as_ref(), ride_status.as_ref())
+        && matches!(
+            status,
+            RideRequestStatus::Accepted
+                | RideRequestStatus::Arrived
+                | RideRequestStatus::Inprogress
+        )
+    {
+        let bearing = driver_last_recorded_location
+            .as_ref()
+            .map(|last| {
+                Haversine::bearing(
+                    Point::new(last.location.lon.0, last.location.lat.0),
+                    Point::new(
+                        current_driver_location.lat_lng.lon.0,
+                        current_driver_location.lat_lng.lat.0,
+                    ),
+                )
+            })
+            .unwrap_or(0.0);
+
+        let location_event = LocationEvent {
+            entity_id: driver_id.0.clone(),
+            ride_id: ride_id.0.clone(),
+            latitude: current_driver_location.lat_lng.lat.0,
+            longitude: current_driver_location.lat_lng.lon.0,
+            timestamp: current_driver_location.timestamp.0.timestamp_millis(),
+            accuracy: current_driver_location
+                .accuracy
+                .map(|a| a.0 as f32)
+                .unwrap_or(0.0),
+            speed: current_driver_location
+                .speed
+                .map(|s| s.0 as i32)
+                .unwrap_or(0),
+            bearing: bearing as f32,
+        };
+        let ctx_clone = ctx.clone();
+        info_span!(
+            "Publishing driver location change",
+            driver_id = %driver_id.0,
+            ride_id = %ride_id.0,
+            vehicle_category = ?vehicle_category,
+        );
+        let publish_location = async move {
+            // Best-effort: a lost fix is superseded by the next one ~2s
+            // later, so never fail the driver's location update over it.
+            if let Err(err) = ctx_clone
+                .redis
+                .publish_message(DRIVER_LOCATION_CHANGE_CHANNEL, &location_event)
+                .await
+            {
+                tracing::warn!(
+                    "Failed to publish driver location change: {:?}",
+                    err
+                );
+            }
+            Ok::<(), AppError>(())
+        };
+        job_tasks.push(Box::pin(publish_location));
+    }
 
     if let (Some(ride_id), Some(RideRequestStatus::Inprogress)) =
         (ride_id.as_ref(), ride_status.as_ref())
@@ -1726,4 +1941,95 @@ fn filter_locations_based_on_accuracy(
             is_within_accuracy && is_far_enough
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn accepted() -> Option<RideRequestStatus> {
+        Some(RideRequestStatus::Accepted)
+    }
+
+    #[test]
+    fn no_state_unless_ride_is_accepted() {
+        assert_eq!(
+            next_notification_state(
+                Some(&RideRequestStatus::Inprogress),
+                Some(RideNotificationState::DriverArriving),
+                Some(Meters(10.0)),
+            ),
+            (None, None)
+        );
+        assert_eq!(
+            next_notification_state(None, None, Some(Meters(10.0))),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn missing_distance_keeps_current_state() {
+        assert_eq!(
+            next_notification_state(
+                accepted().as_ref(),
+                Some(RideNotificationState::DriverArriving),
+                None,
+            ),
+            (None, Some(RideNotificationState::DriverArriving))
+        );
+        // No prior state seeds Idle rather than staying unset.
+        assert_eq!(
+            next_notification_state(accepted().as_ref(), None, None),
+            (None, Some(RideNotificationState::Idle))
+        );
+    }
+
+    #[test]
+    fn distance_buckets_map_to_states() {
+        let cases = [
+            (PICKUP_ARRIVED_THRESHOLD_M, RideNotificationState::DriverArrived),
+            (
+                PICKUP_ARRIVING_THRESHOLD_M,
+                RideNotificationState::DriverArriving,
+            ),
+            (
+                PICKUP_ARRIVING_THRESHOLD_M + 1.0,
+                RideNotificationState::DriverOnTheWay,
+            ),
+        ];
+        for (distance, expected) in cases {
+            assert_eq!(
+                next_notification_state(
+                    accepted().as_ref(),
+                    Some(RideNotificationState::Idle),
+                    Some(Meters(distance)),
+                ),
+                (Some(distance), Some(expected))
+            );
+        }
+    }
+
+    #[test]
+    fn state_never_moves_backward() {
+        assert_eq!(
+            next_notification_state(
+                accepted().as_ref(),
+                Some(RideNotificationState::DriverArriving),
+                Some(Meters(5_000.0)),
+            ),
+            (Some(5_000.0), Some(RideNotificationState::DriverArriving))
+        );
+    }
+
+    #[test]
+    fn first_update_can_jump_straight_to_arrived() {
+        assert_eq!(
+            next_notification_state(
+                accepted().as_ref(),
+                None,
+                Some(Meters(10.0)),
+            ),
+            (Some(10.0), Some(RideNotificationState::DriverArrived))
+        );
+    }
 }

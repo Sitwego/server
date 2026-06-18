@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod bs_plans;
 pub mod captain;
 pub mod customer;
@@ -8,10 +9,12 @@ pub mod preferences;
 pub mod profile;
 pub mod provider;
 pub mod rating;
+pub mod referral;
 pub mod ride_fare;
 pub mod ride_request;
 pub mod rides;
 pub mod two_factor;
+pub mod wallet;
 
 use std::sync::Arc;
 
@@ -274,7 +277,28 @@ pub fn handlers(ctx: Arc<APIContext>) -> Router {
         )
         .route(
             "/api/rides/{ride_id}/fare/components/{key}",
-            get(ride_fare::get_fare_component).layer(user_layer),
+            get(ride_fare::get_fare_component).layer(user_layer.clone()),
+        )
+        // Driver referral programme + the wallet cash rewards land in.
+        .route(
+            "/driver/referral/code",
+            get(referral::get_referral_code).layer(user_layer.clone()),
+        )
+        .route(
+            "/driver/referral/stats",
+            get(referral::get_referral_stats).layer(user_layer.clone()),
+        )
+        .route(
+            "/driver/referral/history",
+            get(referral::get_referral_history).layer(user_layer.clone()),
+        )
+        .route(
+            "/driver/wallet",
+            get(wallet::get_wallet).layer(user_layer.clone()),
+        )
+        .route(
+            "/driver/wallet/transactions",
+            get(wallet::get_wallet_transactions).layer(user_layer),
         )
 }
 

@@ -45,6 +45,11 @@ pub struct Model {
     pub amount_due: Option<Decimal>,
     #[sea_orm(nullable)]
     pub last_billed_at: Option<DateTimeWithTimeZone>,
+    /// Watermark for the daily accrual job (update_due_amount): the instant up
+    /// to which ride charges have been accrued. Advanced ONLY by that job and by
+    /// payment-reset, so it can't drift when other subscription fields change.
+    #[sea_orm(nullable)]
+    pub last_accrued_at: Option<DateTimeWithTimeZone>,
 }
 
 #[derive(

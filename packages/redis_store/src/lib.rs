@@ -915,8 +915,9 @@ mod tests {
             speed: 30,
             bearing: 150.0,
         };
-        let result =
-            pool.publish_message("driver_location_change_channel", &msg).await;
+        let result = pool
+            .publish_message(events::DRIVER_LOCATION_CHANGE_CHANNEL, &msg)
+            .await;
         assert!(result.is_ok(), "{:?}", result.err());
     }
 

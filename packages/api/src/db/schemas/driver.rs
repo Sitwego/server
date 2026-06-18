@@ -1,6 +1,8 @@
 use sea_orm::{Set, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+
+use super::docs::DocumentReviewStatus;
 #[derive(
     Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize,
 )]
@@ -25,6 +27,14 @@ pub struct Model {
     pub has_onboarded: Option<bool>,
     pub photo_nonce: Option<Vec<u8>>,
     pub photo_encrypted_key: Option<Vec<u8>>,
+    /// Admin review state for the profile photo (selfie). Mirrors the document
+    /// review columns; defaults to PENDING via the DB.
+    pub photo_review_status: DocumentReviewStatus,
+    #[sea_orm(column_type = "String(StringLen::N(26))", nullable)]
+    pub photo_reviewed_by: Option<String>,
+    pub photo_reviewed_at: Option<DateTimeWithTimeZone>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub photo_reject_reason: Option<String>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }

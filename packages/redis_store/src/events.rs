@@ -11,6 +11,14 @@ pub const RIDE_EVENTS_STREAM: &str = "swg:stream:ride_events";
 /// Driver offer events sent to the rider during dispatch matching.
 pub const NEXT_DRIVER_OFFERS_STREAM: &str = "swg:stream:next_driver_offers";
 
+// ── Pub/sub channels ───────────────────────────────────────────────────────────
+
+/// Live driver GPS fixes during an active ride. The notification service
+/// subscribes here and fans each `LocationEvent` out to the customer app's
+/// `WatchDriverLocationChanges` gRPC stream, keyed by `ride_id`.
+pub const DRIVER_LOCATION_CHANGE_CHANNEL: &str =
+    "driver_location_change_channel";
+
 // ── Consumer group names ───────────────────────────────────────────────────────
 
 pub const RIDE_EVENTS_GROUP: &str = "ride-event-workers";

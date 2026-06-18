@@ -265,8 +265,11 @@ impl DispatcherQueue {
                             job.ride_search_result,
                         )
                         .await;
-
-                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                    // wait for 2 seconds before starting the dispatch state machine to allow for any initial setup and 
+                    // client-side preparations before the dispatch process begins. 
+                    // delay will help ensure that all necessary components are ready and that
+                    // initial msg-events are processed before the state machine starts.
+                    tokio::time::sleep(Duration::from_millis(2000)).await;
 
                     let result = dispatch_sm.start().await;
                     tracing::info!(

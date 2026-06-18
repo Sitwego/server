@@ -22,11 +22,20 @@ use tracing::error;
 
 use db_store::Database;
 use sea_orm::{
-    ActiveValue, ColumnTrait, EntityTrait, JoinType, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait,
+    ActiveValue, ColumnTrait, EntityTrait, IntoActiveModel, JoinType,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 
 use sea_orm::FromQueryResult;
+
+/// A qualifying category for a driver together with whether the driver has
+/// currently chosen to serve it. The admin assigns the set of categories; the
+/// driver flips `is_active` among them via the public categories endpoint.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct DriverCategorySelection {
+    pub category: VehicleCategory,
+    pub is_active: bool,
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct DriverVehicleAndCategories {
@@ -176,11 +185,14 @@ pub trait DriverQueries {
         driver_id: &str,
     ) -> impl std::future::Future<Output = String> + Send;
 
+    /// The driver's qualifying categories (admin-assigned) with each one's
+    /// active flag, so the driver app can show which it may serve and which it
+    /// has switched on.
     fn get_driver_categories(
         &self,
         driver_id: &DriverId,
     ) -> impl std::future::Future<
-        Output = utils::Result<Vec<VehicleCategory>, AppError>,
+        Output = utils::Result<Vec<DriverCategorySelection>, AppError>,
     > + Send;
 
     fn get_driver_vehicle_and_categories(
@@ -190,11 +202,13 @@ pub trait DriverQueries {
         Output = utils::Result<Option<DriverVehicleAndCategories>, AppError>,
     > + Send;
 
-    fn set_driver_categories(
+    /// Driver-facing: choose which of the admin-assigned (qualifying) categories
+    /// to currently serve. Flips `is_active` on the matching rows and clears it
+    /// on the rest; any category not assigned by the admin is rejected.
+    fn set_driver_active_categories(
         &self,
         driver_id: &DriverId,
-        vehicle_id: &str,
-        categories: &[VehicleCategory],
+        active_categories: &[VehicleCategory],
     ) -> impl std::future::Future<Output = utils::Result<(), AppError>> + Send;
 
     fn login_driver(
@@ -541,11 +555,14 @@ impl DriverQueries for Database {
             return Ok(None);
         };
 
+        // Matching only serves categories the driver has switched on, not every
+        // category the vehicle merely qualifies for.
         let categories = vehicle_category_mappings::Entity::find()
             .select_only()
             .filter(
                 vehicle_category_mappings::Column::DriverId.eq(&driver_id.0),
             )
+            .filter(vehicle_category_mappings::Column::IsActive.eq(true))
             .column(vehicle_category_mappings::Column::Category)
             .into_tuple::<VehicleCategory>()
             .all(self.conn())
@@ -613,7 +630,7 @@ impl DriverQueries for Database {
     async fn get_driver_categories(
         &self,
         driver_id: &DriverId,
-    ) -> utils::Result<Vec<VehicleCategory>, AppError> {
+    ) -> utils::Result<Vec<DriverCategorySelection>, AppError> {
         let driver_id = driver_id.0.clone();
         let categories = self
             .transaction(move |tx| {
@@ -629,7 +646,13 @@ impl DriverQueries for Database {
                         )
                         .all(&*tx)
                         .await?;
-                    Ok(rows.into_iter().map(|r| r.category).collect())
+                    Ok(rows
+                        .into_iter()
+                        .map(|r| DriverCategorySelection {
+                            category: r.category,
+                            is_active: r.is_active,
+                        })
+                        .collect())
                 })
             })
             .await
@@ -698,72 +721,65 @@ impl DriverQueries for Database {
         }))
     }
 
-    async fn set_driver_categories(
+    async fn set_driver_active_categories(
         &self,
         driver_id: &DriverId,
-        vehicle_id: &str,
-        categories: &[VehicleCategory],
+        active_categories: &[VehicleCategory],
     ) -> utils::Result<(), AppError> {
         let driver_id = driver_id.0.clone();
-        let vehicle_id = vehicle_id.to_string();
-        let categories = categories.to_vec();
+        let active: std::collections::BTreeSet<VehicleCategory> =
+            active_categories.iter().copied().collect();
         self.transaction(move |tx| {
             let driver_id = driver_id.clone();
-            let vehicle_id = vehicle_id.clone();
-            let categories = categories.clone();
+            let active = active.clone();
             Box::pin(async move {
-                // Verify the vehicle exists and belongs to this driver before
-                // touching the mappings table — catches stale/wrong vehicle_id
-                // from the client before hitting the FK constraint.
-                let vehicle_exists = vehicle::Entity::find_by_id(&vehicle_id)
-                    .filter(vehicle::Column::DriverId.eq(&driver_id))
-                    .one(&*tx)
-                    .await?
-                    .is_some();
-                if !vehicle_exists {
+                // The admin owns the set of qualifying categories; the driver may
+                // only switch among them. Load what was assigned so we can reject
+                // a request to activate a category the vehicle doesn't qualify for.
+                let assigned = vehicle_category_mappings::Entity::find()
+                    .filter(
+                        vehicle_category_mappings::Column::DriverId
+                            .eq(&driver_id),
+                    )
+                    .all(&*tx)
+                    .await?;
+
+                let assigned_set: std::collections::BTreeSet<VehicleCategory> =
+                    assigned.iter().map(|m| m.category).collect();
+                let unqualified: Vec<VehicleCategory> = active
+                    .iter()
+                    .copied()
+                    .filter(|c| !assigned_set.contains(c))
+                    .collect();
+                if !unqualified.is_empty() {
                     return Err(utils::Error::Http(
                         axum::http::StatusCode::UNPROCESSABLE_ENTITY,
                         format!(
-                            "Vehicle {} not found for this driver",
-                            vehicle_id
+                            "Categories not assigned by admin: {:?}",
+                            unqualified
                         ),
                         hyper::HeaderMap::new(),
                     ));
                 }
 
-                vehicle_category_mappings::Entity::delete_many()
-                    .filter(
-                        vehicle_category_mappings::Column::DriverId
-                            .eq(&driver_id),
-                    )
-                    .exec(&*tx)
-                    .await?;
-
-                if categories.is_empty() {
-                    return Ok(());
-                }
+                // Flip is_active per assigned row to match the requested set.
                 let now = chrono::Utc::now().fixed_offset();
-                let models: Vec<vehicle_category_mappings::ActiveModel> =
-                    categories
-                        .into_iter()
-                        .map(|cat| vehicle_category_mappings::ActiveModel {
-                            vehicle_id: Set(vehicle_id.clone()),
-                            category: Set(cat),
-                            driver_id: Set(driver_id.clone()),
-                            created_at: Set(now),
-                            updated_at: Set(now),
-                        })
-                        .collect();
-
-                vehicle_category_mappings::Entity::insert_many(models)
-                    .exec(&*tx)
-                    .await?;
+                for row in assigned {
+                    let want_active = active.contains(&row.category);
+                    if row.is_active == want_active {
+                        continue;
+                    }
+                    let mut m = row.into_active_model();
+                    m.is_active = Set(want_active);
+                    m.updated_at = Set(now);
+                    m.update(&*tx).await?;
+                }
                 Ok(())
             })
         })
         .await
         .map_err(|err| {
-            error!("Failed to set driver categories  {:?}", err);
+            error!("Failed to set driver active categories  {:?}", err);
             AppError::DatabaseError(err.to_string())
         })?;
         Ok(())

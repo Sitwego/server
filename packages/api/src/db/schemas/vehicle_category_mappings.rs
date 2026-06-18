@@ -21,6 +21,10 @@ pub struct Model {
         indexed
     )]
     pub driver_id: String,
+    /// Whether the driver has chosen to currently serve this (admin-assigned)
+    /// category. Dispatch only matches active categories. New rows default to
+    /// active so an admin-assigned category is immediately serveable.
+    pub is_active: bool,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

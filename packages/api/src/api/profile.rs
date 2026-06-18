@@ -17,6 +17,7 @@ use crate::{
     auth_token::Claims,
     helper::hash_password,
     queries::profile::{PersonalDetailsUpdate, ProfileQueries},
+    queries::referral::ReferralQueries,
     types::ContactData,
 };
 
@@ -52,6 +53,10 @@ pub struct ProfileReqObject {
     pub gender: String,
     pub mobile_country_code: Option<String>,
     pub password: String,
+    /// Referral code of an existing driver (driver sign-ups only). Invalid
+    /// codes reject the registration with 400.
+    #[serde(default)]
+    pub referral_code: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +107,25 @@ pub async fn create_profile(
     if exists {
         info!("Hash exists: {:?}", exists);
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Pre-validate the referral code BEFORE the profile is created, so an
+    // invalid code rejects the registration cleanly (driver sign-ups only).
+    let referral_code = profile_obj
+        .referral_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_uppercase);
+    if is_profile_driver && let Some(ref code) = referral_code {
+        let valid = ctx.db.referral_code_exists(code).await.map_err(|e| {
+            tracing::error!("Failed to check referral code: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+        if !valid {
+            info!("Rejected unknown referral code at registration: {code}");
+            return Err(StatusCode::BAD_REQUEST);
+        }
     }
 
     let sensitive_data = serde_json::to_vec(&SensitiveData {
@@ -155,6 +179,27 @@ pub async fn create_profile(
             StatusCode::INTERNAL_SERVER_ERROR
         })?
         .0;
+
+    if is_profile_driver {
+        // Give the new driver their own shareable referral code. Non-fatal:
+        // get_or_create_referral_code is idempotent, so a miss here heals the
+        // first time the driver opens the referral screen.
+        if let Err(e) = ctx.db.get_or_create_referral_code(&profile_id).await {
+            tracing::error!(
+                "Failed to create referral code for {profile_id}: {e:?}"
+            );
+        }
+
+        // Record who referred this driver. The code was validated above, so a
+        // failure here is a lost race — registration itself must still succeed.
+        if let Some(code) = referral_code
+            && let Err(e) = ctx.db.create_referral(&profile_id, &code).await
+        {
+            tracing::error!(
+                "Failed to record referral for {profile_id}: {e:?}"
+            );
+        }
+    }
 
     let token = Claims::create_token(&ctx.config.jwt_secrete_key, &profile_id)
         .map_err(|e| {
