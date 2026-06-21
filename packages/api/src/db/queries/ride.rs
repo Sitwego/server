@@ -7,15 +7,22 @@ use std::pin::Pin;
 use crate::schemas::ride_request::RideRequestStatus;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait,
-    DbBackend, EntityTrait, QueryFilter, QuerySelect, Statement, Value,
+    DbBackend, EntityTrait, FromQueryResult, QueryFilter, Statement, Value,
 };
 use tokio::try_join;
 use tracing::info_span;
 // use time::OffsetDateTime;
-use crate::schemas::{location, ride_history, ride_request};
+use crate::schemas::{location, ride_request};
 use crate::types::*;
 use crate::{schemas::ride, types::DriverId};
 // use tracing::{info, warn};
+
+/// One exploded point of a ride's stored linestring (PostGIS X = lon, Y = lat).
+#[derive(Debug, FromQueryResult)]
+struct RideLineStringPoint {
+    lat: f64,
+    lon: f64,
+}
 
 type RideData = Result<
     Option<(
@@ -39,6 +46,12 @@ pub trait RideQueries {
         ride_id: &RideId,
         geopoints: &[GeoPoint],
     ) -> impl std::future::Future<Output = utils::Result<()>> + Send;
+    /// Fetch the recorded route for a ride as an ordered list of points.
+    /// Returns an empty vec when the ride has no recorded coordinates.
+    fn get_ride_line_string(
+        &self,
+        ride_id: &RideId,
+    ) -> impl std::future::Future<Output = utils::Result<Vec<GeoPoint>>> + Send;
     fn create_locations(
         &self,
         from: location::ActiveModel,
@@ -128,142 +141,90 @@ impl RideQueries for Database {
         ride_id: &RideId,
         geopoints: &[GeoPoint],
     ) -> utils::Result<()> {
-        let coordinates: Vec<(f64, f64)> =
-            geopoints.iter().map(|point| (point.lat.0, point.lon.0)).collect();
-
-        // Convert coordinates to linestring for PostGIS
-        let line_string = coordinates
+        // PostGIS WKT uses "X Y" = "longitude latitude" ordering.
+        let line_string = geopoints
             .iter()
-            .map(|(x, y)| format!("{} {}", x, y))
+            .map(|point| format!("{} {}", point.lon.0, point.lat.0))
             .collect::<Vec<_>>()
             .join(",");
+        let wkt = format!("LINESTRING({line_string})");
 
-        // check if ride exist in the ride table
-        let ride_id_str = ride_id.0.clone();
-        let ride_id = ride_id_str.clone();
-        let ride_id_1 = ride_id.clone();
+        info_span!("ride wkt", wkt = %wkt).in_scope(|| {
+            tracing::debug!("Appending ride coordinates");
+        });
 
-        let ride = self
-            .transaction(move |tx| {
-                let value = ride_id_str.clone();
-                async move {
-                    let ride = ride::Entity::find_by_id(value)
-                        .one(&*tx)
-                        .await
-                        .context(
-                            "Failed to check for existing ride in ride table",
-                        )?;
-                    Ok(ride)
+        // Insert a fresh linestring, or append the new points onto the existing
+        // geometry, in a single atomic statement. ST_MakeLine concatenates the
+        // existing points (first) with the incoming ones, so we avoid the
+        // app-side read-modify-write and the lost-update race it caused under
+        // concurrent location pings. A missing ride is rejected by the
+        // ride_history -> ride foreign key, so no separate existence check.
+        let sql_stmt = Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO ride_history (ride_id, driver_id, coordinates, updated_at) \
+             VALUES ($1, $2, ST_GeogFromText($3), NOW()) \
+             ON CONFLICT (ride_id) DO UPDATE SET \
+             coordinates = ST_MakeLine(\
+                 ride_history.coordinates::geometry, EXCLUDED.coordinates::geometry\
+             )::geography, \
+             updated_at = NOW()",
+            vec![
+                Value::String(Some(Box::new(ride_id.0.clone()))),
+                Value::String(Some(Box::new(driver_id.0.clone()))),
+                Value::String(Some(Box::new(wkt))),
+            ],
+        );
+
+        self.transaction(move |tx| {
+            let value = sql_stmt.clone();
+            async move {
+                let re: sea_orm::ExecResult = tx
+                    .execute(value)
+                    .await
+                    .context("Failed to upsert ride_history coordinates")?;
+                if re.rows_affected() == 0 {
+                    return Err(
+                        anyhow::anyhow!("Failed to write ride history").into()
+                    );
                 }
-            })
-            .await?;
-
-        if ride.is_none() {
-            return Err(anyhow::anyhow!(
-                "Ride does not exist in the ride table"
-            )
-            .into());
-        }
-
-        // Check if linestring coordinates exist in the table and fetch as WKT
-        let line_string_coordinates = self
-            .transaction(move |tx| {
-                let value = ride_id.clone();
-                async move {
-                    let line_string_coordinates = ride_history::Entity::find()
-                        .select_only()
-                        .column_as(
-                            sea_orm::sea_query::Expr::cust(
-                                "ST_AsText(coordinates)",
-                            ),
-                            "coords",
-                        )
-                        .filter(ride_history::Column::RideId.eq(value))
-                        .into_tuple::<(String,)>()
-                        .one(&*tx)
-                        .await
-                        .context("Failed to query ride_history table")?
-                        .map(|row| row.0);
-                    Ok(line_string_coordinates)
-                }
-            })
-            .await?;
-
-        if let Some(line_string_coordinates) = line_string_coordinates {
-            let existing_coords = line_string_coordinates
-                .strip_prefix("LINESTRING(")
-                .and_then(|s| s.strip_suffix(")"))
-                .unwrap_or(&line_string_coordinates);
-
-            let updated_coords = if existing_coords.is_empty() {
-                line_string
-            } else {
-                format!("{},{}", existing_coords, line_string)
-            };
-            let wkt = format!("LINESTRING({})", updated_coords);
-
-            info_span!("ride wkt", wkt = %wkt.clone()).in_scope(|| {
-                tracing::warn!("Updating ride coordinates");
-            });
-
-            let sql_stmt = Statement::from_sql_and_values(
-                DbBackend::Postgres,
-                "UPDATE ride_history SET coordinates = ST_GeogFromText($1), updated_at = NOW() WHERE ride_id = $2",
-                vec![
-                    Value::String(Some(Box::new(wkt))),
-                    Value::String(Some(Box::new(ride_id_1.clone()))),
-                ],
-            );
-
-            self.transaction(move |tx| {
-                let value = sql_stmt.clone();
-                async move {
-                    let _ = tx
-                        .execute(value)
-                        .await
-                        .context("Failed to update ride_history table")?;
-                    Ok(())
-                }
-            })
-            .await
-            .context("Transaction failed")?;
-        } else {
-            // Insert the new linestring coordinates
-            let wkt = format!("LINESTRING({})", line_string);
-            info_span!("ride wkt", wkt = %wkt.clone()).in_scope(|| {
-                tracing::warn!("Inserting new ride coordinates");
-            });
-            let sql_stmt = Statement::from_sql_and_values(
-                DbBackend::Postgres,
-                "INSERT INTO ride_history (ride_id, driver_id, coordinates, updated_at) VALUES ($1, $2, ST_GeogFromText($3), NOW())",
-                vec![
-                    Value::String(Some(Box::new(ride_id_1.clone()))),
-                    Value::String(Some(Box::new(driver_id.0.clone()))),
-                    Value::String(Some(Box::new(wkt))),
-                ],
-            );
-
-            self.transaction(move |tx| {
-                let value = sql_stmt.clone();
-                async move {
-                    let re: sea_orm::ExecResult = tx
-                        .execute(value)
-                        .await
-                        .context("Failed to create ride_history")?;
-                    if re.rows_affected() == 0 {
-                        return Err(anyhow::anyhow!(
-                            "Failed to insert ride history"
-                        )
-                        .into());
-                    }
-                    Ok(())
-                }
-            })
-            .await
-            .context("Transaction failed")?;
-        }
+                Ok(())
+            }
+        })
+        .await
+        .context("Transaction failed")?;
 
         Ok(())
+    }
+
+    async fn get_ride_line_string(
+        &self,
+        ride_id: &RideId,
+    ) -> utils::Result<Vec<GeoPoint>> {
+        // Explode the stored geography into ordered points and read each
+        // coordinate directly via ST_X (longitude) / ST_Y (latitude), so we
+        // never have to parse WKT text on the Rust side.
+        let stmt = Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT ST_Y(dp.geom) AS lat, ST_X(dp.geom) AS lon \
+             FROM ride_history rh, \
+                  LATERAL ST_DumpPoints(rh.coordinates::geometry) AS dp \
+             WHERE rh.ride_id = $1 \
+             ORDER BY dp.path",
+            vec![Value::String(Some(Box::new(ride_id.0.clone())))],
+        );
+
+        let rows = RideLineStringPoint::find_by_statement(stmt)
+            .all(self.conn())
+            .await
+            .context("Failed to query ride line string")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|p| GeoPoint {
+                lat: Latitude(p.lat),
+                lon: Longitude(p.lon),
+            })
+            .collect())
     }
 
     async fn create_locations(
