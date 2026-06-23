@@ -18,7 +18,7 @@ use redis_store::{
     r_types::{GeoPoint, LocationEvent},
 };
 use serde::{Deserialize, Serialize};
-use std::{pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 use time::OffsetDateTime;
 // use tokio::time::Duration;
 use tracing::{error_span, info, info_span, warn_span};
@@ -196,11 +196,36 @@ pub struct CreateRideResponse {
     pub ride_id: String,
 }
 
+/// Surcharge keys the driver app is allowed to send on top of the estimated
+/// fare. Adding a new fare type (e.g. `"pickup_fare"`) means appending one
+/// entry here — the summing and JSON storage are fully generic.
+///
+/// Longer term this list can move into a DB table maintained by admin
+/// (see `validate_surcharge_keys`).
+const ALLOWED_SURCHARGES: &[&str] =
+    &["waiting_charge", "toll", "extra_dx", "pickup_fare", "fuel_surcharge"];
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FareComponent {
-    pub waiting_charge: i32,
-    pub toll: i32,
-    pub extra_dx: i32,
+    /// Named surcharges on top of the estimated fare, e.g.
+    /// `{"waiting_charge": 45, "toll": 80, "fuel_surcharge": 20}`.
+    /// `BTreeMap` keeps the stored JSON key order deterministic.
+    #[serde(flatten)]
+    pub surcharges: BTreeMap<String, i32>,
+}
+
+/// Rejects any surcharge key not in `ALLOWED_SURCHARGES`.
+fn validate_surcharge_keys(
+    surcharges: &BTreeMap<String, i32>,
+) -> Result<(), AppError> {
+    if let Some(bad) =
+        surcharges.keys().find(|k| !ALLOWED_SURCHARGES.contains(&k.as_str()))
+    {
+        return Err(AppError::ValidationError(format!(
+            "unknown fare component: {bad}"
+        )));
+    }
+    Ok(())
 }
 #[derive(Debug, Deserialize)]
 pub struct CreateRideRequest {
@@ -318,17 +343,20 @@ pub async fn create_ride(
         );
         let (fare_components_json, fare_total) =
             if let Some(fc) = body.fare_component {
+                validate_surcharge_keys(&fc.surcharges)?;
+
                 let estimated_fare = ride_request.fare;
                 let extra_total = rust_decimal::Decimal::from(
-                    fc.waiting_charge + fc.toll + fc.extra_dx,
+                    fc.surcharges.values().sum::<i32>(),
                 );
                 let total = estimated_fare + extra_total;
-                let json = serde_json::json!({
-                    "estimated_fare": estimated_fare,
-                    "waiting_charge": fc.waiting_charge,
-                    "toll": fc.toll,
-                    "extra_dx": fc.extra_dx,
-                });
+
+                // Start from the surcharge map, then add the estimate so any
+                // new fare type flows into storage without code changes.
+                let mut json = serde_json::to_value(&fc.surcharges)
+                    .unwrap_or_else(|_| serde_json::json!({}));
+                json["estimated_fare"] = serde_json::json!(estimated_fare);
+
                 (json, total)
             } else {
                 let estimated = ride_request.fare;
