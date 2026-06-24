@@ -350,6 +350,10 @@ pub struct NextDriverOfferEventPayload {
     pub longitude: f64,
     pub distance_km: f64,
     pub estimated_arrival_time: f64,
+    /// Pickup fare (KES) for this driver's approach leg, shown to the rider
+    /// with the offer. 0 when the approach is free or pricing was unavailable.
+    #[serde(default)]
+    pub pickup_fare: i32,
     pub timestamp: i64,
 }
 

@@ -197,13 +197,17 @@ pub struct CreateRideResponse {
 }
 
 /// Surcharge keys the driver app is allowed to send on top of the estimated
-/// fare. Adding a new fare type (e.g. `"pickup_fare"`) means appending one
-/// entry here — the summing and JSON storage are fully generic.
+/// fare. Adding a new client-supplied fare type means appending one entry here
+/// — the summing and JSON storage are fully generic.
+///
+/// `pickup_fare` is deliberately absent: it is computed server-side from the
+/// matched driver's approach leg (see `compute_pickup_fare`) and must never be
+/// trusted from the client.
 ///
 /// Longer term this list can move into a DB table maintained by admin
 /// (see `validate_surcharge_keys`).
 const ALLOWED_SURCHARGES: &[&str] =
-    &["waiting_charge", "toll", "extra_dx", "pickup_fare", "fuel_surcharge"];
+    &["waiting_charge", "toll", "extra_dx", "fuel_surcharge"];
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FareComponent {
@@ -264,6 +268,11 @@ pub async fn create_ride(
         }
 
         let estimated_fare = ride_request.fare.to_f64().unwrap_or(0.0);
+
+        // Pickup fare was computed and locked when the driver accepted (see
+        // accept_ride_request); just read it back here.
+        let pickup_fare = ride_info.pickup_fare.unwrap_or(0);
+
         let ride_start_event = RideStartEvent {
             event_id: ulid_string(),
             timestamp: Utc::now().timestamp_millis(),
@@ -341,15 +350,14 @@ pub async fn create_ride(
             client_id,
             body.fare_component
         );
-        let (fare_components_json, fare_total) =
+        let (mut fare_components_json, base_total) =
             if let Some(fc) = body.fare_component {
                 validate_surcharge_keys(&fc.surcharges)?;
 
                 let estimated_fare = ride_request.fare;
-                let extra_total = rust_decimal::Decimal::from(
+                let surcharge_total = rust_decimal::Decimal::from(
                     fc.surcharges.values().sum::<i32>(),
                 );
-                let total = estimated_fare + extra_total;
 
                 // Start from the surcharge map, then add the estimate so any
                 // new fare type flows into storage without code changes.
@@ -357,7 +365,7 @@ pub async fn create_ride(
                     .unwrap_or_else(|_| serde_json::json!({}));
                 json["estimated_fare"] = serde_json::json!(estimated_fare);
 
-                (json, total)
+                (json, estimated_fare + surcharge_total)
             } else {
                 let estimated = ride_request.fare;
                 (
@@ -365,6 +373,13 @@ pub async fn create_ride(
                     estimated,
                 )
             };
+
+        // Merge the server-computed pickup fare into the snapshot once.
+        if pickup_fare > 0 {
+            fare_components_json["pickup_fare"] =
+                serde_json::json!(pickup_fare);
+        }
+        let fare_total = base_total + rust_decimal::Decimal::from(pickup_fare);
 
         ctx.db
             .insert_ride_fare(
@@ -789,6 +804,9 @@ pub async fn cancel_ride(
 pub struct AcceptedRideResp {
     pub pickup_location: Point,
     pub polyline: Option<Vec<(f64, f64)>>,
+    /// Pickup fare (KES) locked for this driver's approach leg. 0 when the
+    /// approach is under the free threshold or pricing was unavailable.
+    pub pickup_fare: i32,
 }
 // #[axum_macros::debug_handler]
 pub async fn accept_ride_request(
@@ -895,6 +913,18 @@ pub async fn accept_ride_request(
                     line
                 });
 
+            // Lock the pickup fare now that the matched driver is committed,
+            // priced from this driver's approach leg. Carried on RideInfo and
+            // read back at ride start, so it can also be surfaced to the rider.
+            let pickup_fare = ctx
+                .db
+                .resolve_pickup_fare(
+                    &vc,
+                    requested_ride.estimated_distance_to_pickup,
+                    requested_ride.estimated_duration_to_pickup,
+                )
+                .await;
+
             let ride_info = RideInfo {
                 vehicle_category: vc,
                 ride_id: ride_id.to_owned(),
@@ -912,6 +942,7 @@ pub async fn accept_ride_request(
                     requested_ride.estimated_distance_to_pickup.unwrap_or(0.0),
                 )),
                 created_at: TimeStamp(Utc::now()),
+                pickup_fare: Some(pickup_fare),
             };
             set_ride_info(
                 &ctx.redis,
@@ -980,6 +1011,7 @@ pub async fn accept_ride_request(
             Ok(Json(AcceptedRideResp {
                 pickup_location,
                 polyline,
+                pickup_fare,
             }))
         }
         Err(err) => {
@@ -1002,6 +1034,8 @@ pub async fn accept_ride_request(
                 let ride_info =
                     get_ride_info(&ctx.redis, DriverId(driver_id.to_owned()))
                         .await;
+                let pickup_fare =
+                    ride_info.as_ref().and_then(|i| i.pickup_fare).unwrap_or(0);
                 let (pickup_location, polyline) = ride_info
                     .and_then(|info| info.ride_data)
                     .and_then(|rd| match rd {
@@ -1021,6 +1055,7 @@ pub async fn accept_ride_request(
                 return Ok(Json(AcceptedRideResp {
                     pickup_location,
                     polyline,
+                    pickup_fare,
                 }));
             }
 
@@ -1498,13 +1533,14 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
             _ => None,
         });
 
-    let pickup_location =
-        ride_data.as_ref().map(|ride_data| match ride_data {
-            RideData::Taxi { pickup_location, .. }
-            | RideData::Ridepooling { pickup_location, .. } => {
-                *pickup_location
-            }
-        });
+    let pickup_location = ride_data.as_ref().map(|ride_data| match ride_data {
+        RideData::Taxi {
+            pickup_location, ..
+        }
+        | RideData::Ridepooling {
+            pickup_location, ..
+        } => *pickup_location,
+    });
 
     let driver_last_recorded_location =
         driver_location_info.as_ref().map(|info| info.position_info.clone());
@@ -1561,7 +1597,6 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
         distance_notification_status,
         distance_to_pickup,
     );
-
 
     #[allow(clippy::type_complexity)]
     let mut job_tasks: Vec<
@@ -1654,8 +1689,8 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
     // state is a forward-only ratchet, so a strict increase fires each
     // proximity push at most once per ride; Idle -> DriverOnTheWay stays
     // silent (the customer already knows the ride was accepted).
-    let prev_notification_state = distance_notification_status
-        .unwrap_or(RideNotificationState::Idle);
+    let prev_notification_state =
+        distance_notification_status.unwrap_or(RideNotificationState::Idle);
     if let (Some(ride_id), Some(new_state)) = (ride_id.as_ref(), r_status)
         && new_state > prev_notification_state
         && new_state >= RideNotificationState::DriverArriving
@@ -1681,25 +1716,20 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
                     return Ok(());
                 }
             };
-            let driver_display_name = ctx_clone
-                .db
-                .get_driver_display_name(&driver_id_clone.0)
-                .await;
+            let driver_display_name =
+                ctx_clone.db.get_driver_display_name(&driver_id_clone.0).await;
             let customer_id = ride.customer_id.clone();
             crate::notif::spawn_notify(
                 ctx_clone.db.clone(),
                 ctx_clone.notif.clone(),
                 customer_id.clone(),
                 move |b| {
-                    let b = if new_state
-                        == RideNotificationState::DriverArrived
+                    let b = if new_state == RideNotificationState::DriverArrived
                     {
-                        b.title("Your driver has arrived! 🚗").message(
-                            format!(
-                                "{} is waiting at your pickup location.",
-                                driver_display_name
-                            ),
-                        )
+                        b.title("Your driver has arrived! 🚗").message(format!(
+                            "{} is waiting at your pickup location.",
+                            driver_display_name
+                        ))
                     } else {
                         b.title("Your driver is almost there! 🚗").message(
                             format!(
@@ -1712,10 +1742,7 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
                     // "arrived" push replaces this one on the device.
                     b.android_channel("on-driver-arrival")
                         .android_color("#ed1380")
-                        .android_tag(format!(
-                            "driver-arrival-{}",
-                            customer_id
-                        ))
+                        .android_tag(format!("driver-arrival-{}", customer_id))
                         .click_action("OPEN_RIDE_TRACKING")
                         .high_priority()
                         .content_available()
@@ -1779,7 +1806,10 @@ async fn process_ride_coordinates(params: RideParams) -> Result<(), AppError> {
             // later, so never fail the driver's location update over it.
             if let Err(err) = ctx_clone
                 .redis
-                .publish_message(DRIVER_LOCATION_CHANGE_CHANNEL, &location_event)
+                .publish_message(
+                    DRIVER_LOCATION_CHANGE_CHANNEL,
+                    &location_event,
+                )
                 .await
             {
                 tracing::warn!(
@@ -2015,7 +2045,10 @@ mod tests {
     #[test]
     fn distance_buckets_map_to_states() {
         let cases = [
-            (PICKUP_ARRIVED_THRESHOLD_M, RideNotificationState::DriverArrived),
+            (
+                PICKUP_ARRIVED_THRESHOLD_M,
+                RideNotificationState::DriverArrived,
+            ),
             (
                 PICKUP_ARRIVING_THRESHOLD_M,
                 RideNotificationState::DriverArriving,

@@ -183,9 +183,10 @@ impl RideQueries for Database {
                     .await
                     .context("Failed to upsert ride_history coordinates")?;
                 if re.rows_affected() == 0 {
-                    return Err(
-                        anyhow::anyhow!("Failed to write ride history").into()
-                    );
+                    return Err(anyhow::anyhow!(
+                        "Failed to write ride history"
+                    )
+                    .into());
                 }
                 Ok(())
             }
