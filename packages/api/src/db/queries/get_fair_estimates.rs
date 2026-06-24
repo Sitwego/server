@@ -5,6 +5,37 @@ use tracing::info_span;
 use utils::Result;
 
 use crate::{schemas::vehicle_categories, types::VehicleCategory};
+
+/// Minimum approach distance (km) before a pickup fare applies. Short
+/// approaches are absorbed (free) — the driver is close enough that charging
+/// for the leg isn't warranted.
+pub const PICKUP_FARE_MIN_DISTANCE_KM: f64 = 1.0;
+
+/// Prices the pickup (approach) leg from the matched driver's estimated
+/// distance/duration to the rider:
+///
+///   pickup_fare = (distance_km × distance_rate) + (duration_min × time_rate)
+///
+/// Distance arrives in metres and duration in seconds (OSRM units persisted by
+/// dispatch on the ride request); rates are the category's per-km short-tier
+/// rate and per-minute rate, matching how the ride fare itself is priced.
+/// Approaches under [`PICKUP_FARE_MIN_DISTANCE_KM`] are free. Returns whole
+/// KES, floored at 0.
+pub fn compute_pickup_fare(
+    pricing: &vehicle_categories::Model,
+    distance_m: Option<f64>,
+    duration_s: Option<i32>,
+) -> i32 {
+    let distance_km = distance_m.unwrap_or(0.0) / 1000.0;
+    if distance_km < PICKUP_FARE_MIN_DISTANCE_KM {
+        return 0;
+    }
+    let duration_min = duration_s.unwrap_or(0) as f64 / 60.0;
+    let fare = distance_km * pricing.short_distance_kes_per_km as f64
+        + duration_min * pricing.per_min_rate as f64;
+    fare.round().max(0.0) as i32
+}
+
 pub trait GetFairEstimates {
     fn get_fair_estimate(
         &self,
@@ -14,6 +45,26 @@ pub trait GetFairEstimates {
         is_return_trip: bool,
         duration: i32,
     ) -> impl std::future::Future<Output = Result<Vec<FareEstimate>>> + Send;
+
+    /// Fetches the pricing row for a single vehicle category. Used to price
+    /// the pickup leg (and any other server-side fare component) at ride start.
+    fn get_category_pricing(
+        &self,
+        category: &VehicleCategory,
+    ) -> impl std::future::Future<
+        Output = Result<Option<vehicle_categories::Model>>,
+    > + Send;
+
+    /// Resolves the server-authoritative pickup fare for a ride: loads the
+    /// category's pricing and prices the approach leg via [`compute_pickup_fare`].
+    /// A pricing lookup miss/error must not block the caller, so it degrades to
+    /// 0 (the pickup leg simply isn't charged).
+    fn resolve_pickup_fare(
+        &self,
+        category: &VehicleCategory,
+        distance_m: Option<f64>,
+        duration_s: Option<i32>,
+    ) -> impl std::future::Future<Output = i32> + Send;
 }
 
 impl GetFairEstimates for Database {
@@ -62,6 +113,46 @@ impl GetFairEstimates for Database {
             }
         })
         .await
+    }
+
+    async fn get_category_pricing(
+        &self,
+        category: &VehicleCategory,
+    ) -> Result<Option<vehicle_categories::Model>> {
+        let pricing = vehicle_categories::Entity::find()
+            .filter(vehicle_categories::Column::Category.eq(category.clone()))
+            .one(self.conn())
+            .await?;
+        Ok(pricing)
+    }
+
+    async fn resolve_pickup_fare(
+        &self,
+        category: &VehicleCategory,
+        distance_m: Option<f64>,
+        duration_s: Option<i32>,
+    ) -> i32 {
+        match self.get_category_pricing(category).await {
+            Ok(Some(pricing)) => {
+                compute_pickup_fare(&pricing, distance_m, duration_s)
+            }
+            Ok(None) => {
+                tracing::warn!(
+                    tag = "pickup_fare",
+                    "No pricing row for category {:?}; skipping pickup fare",
+                    category
+                );
+                0
+            }
+            Err(err) => {
+                tracing::error!(
+                    tag = "pickup_fare",
+                    "Failed to load category pricing: {:?}; skipping pickup fare",
+                    err
+                );
+                0
+            }
+        }
     }
 }
 

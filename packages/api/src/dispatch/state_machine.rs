@@ -42,7 +42,7 @@ use crate::{
     helper::{create_bucket_key, ttl_to_datetime},
     queries::{
         driver_stats::DriverStatsQueries, drivers::DriverQueries,
-        ride::RideQueries,
+        get_fair_estimates::GetFairEstimates, ride::RideQueries,
     },
     schemas::{driver_stats, location, ride_request},
     types::{DriverId, NearbyDriverWithStat, TimeStamp, VehicleCategory},
@@ -614,6 +614,19 @@ impl DispatchStateMachine {
         );
         let driver_avatar =
             format!("{}/{}", result.driver_id, driver_info.photo_id,);
+
+        // Price this driver's approach leg so the rider sees the pickup fare
+        // with the offer. dx is metres, dt seconds (OSRM units from get_eta).
+        let pickup_fare = self
+            .api_ctx
+            .db
+            .resolve_pickup_fare(
+                &result.vehicle_category,
+                Some(dx),
+                Some(dt as i32),
+            )
+            .await;
+
         // publish ride request to rider next_driver_offers_events channel
         if let Err(e) = events_mgr
             .publish_event(
@@ -635,6 +648,7 @@ impl DispatchStateMachine {
                         longitude: result.coords.lon.0,
                         distance_km: dx,
                         estimated_arrival_time: dt as f64, // driver arrival at pickup time
+                        pickup_fare,
                         timestamp: now.elapsed().as_millis() as i64,
                     }),
                 }),

@@ -179,6 +179,11 @@ pub struct RideInfo {
     pub estimated_pickup_distance: Option<Meters>,
     pub created_at: TimeStamp,
     pub vehicle_category: VehicleCategory,
+    /// Server-computed pickup fare (KES), locked at driver-accept time. Read
+    /// back at ride start. `#[serde(default)]` keeps ride-infos cached before
+    /// this field existed deserializable.
+    #[serde(default)]
+    pub pickup_fare: Option<i32>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, Display, PartialEq)]
