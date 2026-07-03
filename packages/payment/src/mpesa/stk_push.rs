@@ -22,8 +22,6 @@ where
     serializer.serialize_str(&s)
 }
 const REQUEST_URL: &str = "mpesa/stkpush/v1/processrequest";
-pub static DEV_PASS_KEY: &str =
-    "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919";
 
 #[derive(Debug, Builder, Clone)]
 #[builder(setter(into))]
@@ -31,8 +29,7 @@ pub struct StkPush<'a> {
     #[builder(pattern = "immutable")]
     mpesa_instance: &'a MpesaInstance,
     business_short_code: &'a str,
-    #[builder(setter(strip_option), default = "Some(DEV_PASS_KEY)")]
-    password: Option<&'a str>,
+    password: &'a str,
     transaction_type: TransactionType,
     party_a: &'a str,
     amount: u32,
@@ -99,10 +96,15 @@ impl Display for TransactionType {
 
 impl<'a> From<StkPush<'a>> for StkPushReq<'a> {
     fn from(v: StkPush<'a>) -> Self {
+        let timestamp = Local::now();
         Self {
             business_short_code: v.business_short_code,
-            password: StkPush::pass_key(v.business_short_code, v.password),
-            timestamp: chrono::Local::now(),
+            password: StkPush::pass_key(
+                v.business_short_code,
+                v.password,
+                &timestamp,
+            ),
+            timestamp,
             transaction_type: v.transaction_type,
             amount: v.amount,
             party_a: v.party_a,
@@ -125,17 +127,12 @@ impl<'a> StkPush<'a> {
 
     pub fn pass_key(
         bs_short_code: &'a str,
-        key: Option<&'a str>,
-    ) -> std::string::String {
-        let time = chrono::Local::now().format("%Y%m%d%H%M%S").to_string();
+        key: &'a str,
+        timestamp: &DateTime<Local>,
+    ) -> String {
+        let time = timestamp.format("%Y%m%d%H%M%S").to_string();
         base64::encode_block(
-          format!(
-            "{}{}{}",
-            bs_short_code,
-            key.unwrap_or(DEV_PASS_KEY),
-            time,
-          )
-          .as_bytes()
+            format!("{}{}{}", bs_short_code, key, time).as_bytes(),
         )
     }
 
