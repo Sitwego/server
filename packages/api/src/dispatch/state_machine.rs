@@ -53,6 +53,10 @@ pub struct RideRequestNotification {
     id: String,
     from: RequestRideData,
     to: RequestRideData,
+    /// Intermediate stops in visit order; empty for direct rides. Old driver
+    /// apps ignore this JSON field, so it's backward compatible.
+    #[serde(default)]
+    stops: Vec<RequestRideData>,
     fare: i32,
     distance: f64,
     vc: Option<VehicleCategory>,
@@ -511,6 +515,7 @@ impl DispatchStateMachine {
             id: ulid_string(),
             from: self.ride_request.from.clone(),
             to: self.ride_request.to.clone(),
+            stops: self.ride_request.stops.clone(),
             fare: self.ride_request.fare,
             distance: ride_dx,
             vc: Some(result.vehicle_category),
@@ -1230,17 +1235,24 @@ impl DispatchStateMachine {
         let to = transform_ride_request_location_data(
             self.ride_request.to.to_owned(),
         );
+        let stops = self
+            .ride_request
+            .stops
+            .iter()
+            .cloned()
+            .map(transform_ride_request_location_data)
+            .collect::<Vec<_>>();
 
-        let (from, to) = self
+        let (from, to, stop_ids) = self
             .api_ctx
             .db
-            .create_locations(from, to)
+            .create_locations(from, to, stops)
             .await
             .map_err(|err| AppError::InternalError(err.to_string()))?;
 
         self.api_ctx
             .db
-            .create_ride_request(m, from, to, end_otp)
+            .create_ride_request(m, from, to, end_otp, stop_ids)
             .await
             .map_err(|err| AppError::InternalError(err.to_string()))?;
         Ok(())

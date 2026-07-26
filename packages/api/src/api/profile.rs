@@ -128,6 +128,11 @@ pub async fn create_profile(
         }
     }
 
+    // Capture the plaintext email + name for the welcome mail before they are
+    // moved into the (about-to-be-encrypted) sensitive payload below.
+    // let recipient_email = profile_obj.contact_data.email.clone();
+    // let recipient_name = profile_obj.first_name.clone();
+
     let sensitive_data = serde_json::to_vec(&SensitiveData {
         email: profile_obj.contact_data.email,
         phone: profile_obj.contact_data.phone_number,
@@ -201,6 +206,16 @@ pub async fn create_profile(
         }
     }
 
+    // Fire the welcome email in the background: it must never block or fail the
+    // registration. Skipped silently when email is disabled or no matching
+    // published template exists yet.
+    // spawn_welcome_email(
+    //     ctx.clone(),
+    //     recipient_email,
+    //     recipient_name,
+    //     is_profile_driver,
+    // );
+
     let token = Claims::create_token(&ctx.config.jwt_secrete_key, &profile_id)
         .map_err(|e| {
             tracing::error!("Failed to create access_token: {:?}", e);
@@ -209,6 +224,39 @@ pub async fn create_profile(
 
     Ok(Json(CreateProfileResponse { profile_id, token }))
 }
+
+/// Send the new user their welcome email off the request path. Driver and
+/// customer sign-ups use distinct template slugs (`welcome_driver` /
+/// `welcome_customer`) so admins can word each independently; either being
+/// absent (or email being disabled) is a no-op, not an error.
+// fn spawn_welcome_email(
+//     ctx: Arc<APIContext>,
+//     email: String,
+//     first_name: String,
+//     is_driver: bool,
+// ) {
+//     if !ctx.config.email_enabled() || email.trim().is_empty() {
+//         return;
+//     }
+//     let slug = if is_driver { "welcome_driver" } else { "welcome_customer" };
+
+//     tokio::spawn(async move {
+//         let context = serde_json::json!({ "first_name": first_name });
+//         match ctx
+//             .email
+//             .send_template_by_slug(&ctx.db, slug, vec![email], &context)
+//             .await
+//         {
+//             Ok(Some(receipt)) => {
+//                 info!("sent welcome email ({slug}), id={}", receipt.id)
+//             }
+//             Ok(None) => {
+//                 tracing::debug!("no published '{slug}' template; skipping welcome email")
+//             }
+//             Err(e) => tracing::error!("failed to send welcome email: {e}"),
+//         }
+//     });
+// }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdatePersonalDetailsRequest {

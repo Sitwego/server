@@ -1,4 +1,4 @@
-use crate::types::EmailMessage;
+use crate::types::{EmailMessage, RenderedEmail};
 
 #[derive(Debug, Default)]
 pub struct EmailBuilder {
@@ -51,6 +51,14 @@ impl EmailBuilder {
 
     pub fn html(mut self, html: impl Into<String>) -> Self {
         self.html = Some(html.into());
+        self
+    }
+
+    /// Set both subject and HTML body from a rendered template
+    /// ([`crate::TemplateRenderer`] or a [`crate::system`] email).
+    pub fn rendered(mut self, rendered: RenderedEmail) -> Self {
+        self.subject = Some(rendered.subject);
+        self.html = Some(rendered.html);
         self
     }
 

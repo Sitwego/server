@@ -1,4 +1,7 @@
-use crate::{EmailBuilder, EmailSender, ResendClient};
+use crate::{
+    EmailBuilder, EmailSender, OtpEmail, ResendClient, StoredTemplate,
+    TemplateRenderer,
+};
 
 fn client() -> Option<ResendClient> {
     let key = std::env::var("RESEND_API_KEY").ok()?;
@@ -100,4 +103,67 @@ fn builder_rejects_no_body() {
         .subject("test")
         .build();
     assert!(err.is_err());
+}
+
+// ── template rendering (admin / Unlayer path) ──────────────────────────────
+
+fn stored(subject_src: &str, html_src: &str) -> StoredTemplate {
+    StoredTemplate {
+        slug: "test_tpl".into(),
+        subject_src: subject_src.into(),
+        html_src: html_src.into(),
+        from: None,
+        reply_to: None,
+    }
+}
+
+#[test]
+fn renders_subject_and_body_with_context() {
+    let tpl = stored(
+        "Ride to {{ destination }}",
+        "<p>Hi {{ rider_name }}, fare {{ fare }}.</p>",
+    );
+    let ctx = serde_json::json!({
+        "destination": "Airport",
+        "rider_name": "Alex",
+        "fare": "12.50",
+    });
+
+    let out = TemplateRenderer::new().render(&tpl, &ctx).unwrap();
+    assert_eq!(out.subject, "Ride to Airport");
+    assert_eq!(out.html, "<p>Hi Alex, fare 12.50.</p>");
+}
+
+#[test]
+fn escapes_variable_values_but_not_template_markup() {
+    // The `<b>` is the template's own markup (passes through); the value's `<`
+    // must be escaped so injected data cannot break or inject markup.
+    let tpl = stored("s", "<b>{{ note }}</b>");
+    let ctx = serde_json::json!({ "note": "<script>x</script>" });
+
+    let out = TemplateRenderer::new().render(&tpl, &ctx).unwrap();
+    // minijinja HTML-escapes `<`, `>` and also `/` (as `&#x2f;`).
+    assert_eq!(out.html, "<b>&lt;script&gt;x&lt;&#x2f;script&gt;</b>");
+    // The template's own <b> markup is untouched.
+    assert!(out.html.starts_with("<b>") && out.html.ends_with("</b>"));
+}
+
+#[test]
+fn strict_mode_errors_on_undeclared_variable() {
+    let tpl = stored("s", "<p>{{ missing_var }}</p>");
+    let ctx = serde_json::json!({});
+
+    assert!(TemplateRenderer::new().render(&tpl, &ctx).is_err());
+}
+
+// ── system emails (askama path) ────────────────────────────────────────────
+
+#[test]
+fn otp_system_email_renders() {
+    let out = OtpEmail { code: "482913".into(), expiry_minutes: 10 }
+        .render_email()
+        .unwrap();
+    assert_eq!(out.subject, OtpEmail::SUBJECT);
+    assert!(out.html.contains("482913"));
+    assert!(out.html.contains("10 minutes"));
 }

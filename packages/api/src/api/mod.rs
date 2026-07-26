@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod beckn_internal;
 pub mod bs_plans;
 pub mod captain;
 pub mod customer;
@@ -111,6 +112,11 @@ pub fn handlers(ctx: Arc<APIContext>) -> Router {
         .route(
             "/api/rider-cancel-ride-request/{ride_id}",
             post(rides::rider_cancel_ride_request).layer(user_layer.clone()),
+        )
+        // Two OSRM routes per call — rate-limit like the fare estimation.
+        .route(
+            "/api/ride/{ride_id}/add-stop",
+            post(rides::add_ride_stop).layer(expensive_layer.clone()),
         )
         .route(
             "/accept-ride-request/{ride_id}/{vc}/accept",

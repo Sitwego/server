@@ -1,0 +1,2374 @@
+{
+  "info": {
+    "_postman_id": "ce6a4583-146c-470d-b28a-e2fb331bbbdf",
+    "name": "SitweGoApi",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "40320527"
+  },
+  "item": [
+    {
+      "name": "create user",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"contact_data\": {\r\n        \"email\": \"sityy@gamil.com\",\r\n        \"phone_number\": \"0722167750\"\r\n    },\r\n    \"first_name\": \"John\",\r\n    \"last_name\": \"Ngugi\",\r\n    \"gender\": \"Male\",\r\n    \"mobile_country_code\": \"+254\",\r\n    \"password\": \"beaCom12\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://backend-api.sitwego.com/create-profile/customer",
+          "protocol": "https",
+          "host": [
+            "backend-api",
+            "sitwego",
+            "com"
+          ],
+          "path": [
+            "create-profile",
+            "customer"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "login-customer",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"phone_number\": \"\",\r\n    \"device_id\": \"\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/login-customer",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8000",
+          "path": [
+            "login-customer"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "location_update",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr1}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "vc",
+            "value": "Xl",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n    {\r\n        \"lat_lng\": {\r\n            \"lat\": -1.2671134387460876,\r\n            \"lon\": 36.610030639150004\r\n        },\r\n        \"speed\": 10.0,\r\n        \"accuracy\": 20.0,\r\n        \"timestamp\": \"{{$isoTimestamp}}\",\r\n        \"distance\": 10.0\r\n    }\r\n]\r\n// 01JS4VPW5XD62371DF0XETKJRM driver",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/update-location-coordinates?ride_id=",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "update-location-coordinates"
+          ],
+          "query": [
+            {
+              "key": "ride_id",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ride-fair-estimation C",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpRWEFTRDI5M01BUjdRUjlYN1o4V05QViIsImV4cCI6MTc1MTQ0MzM3NywiaWF0IjoxNzQzNjY3Mzc3fQ.co-XEYLpqxacROkfXbG6Vj2tuVZU8BbkaBkbsXX-zRM",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"from\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2677294103490326,\r\n            \"lon\": 36.6096463389564\r\n        }\r\n    },\r\n    \"to\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2845400079639786,\r\n            \"lon\": 36.621949631571226 \r\n        }\r\n    }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/ride-fair-estimation",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "ride-fair-estimation"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "send-ride-request?q C",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n     \"from\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.269874566297909,\r\n            \"lon\": 36.60392144129637\r\n        }\r\n    },\r\n    \"to\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2844653831469248,\r\n            \"lon\": 36.622000257119645\r\n        }\r\n    },\r\n    \"dx\": 200.0,\r\n    \"fare\": 460,\r\n    \"radius\": 2000.0,\r\n    \"vehicle_type\": [\r\n        \"Swift\"\r\n    ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/send-ride-request?q=01K3DD177NE4NPANKEQ649WY56",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "send-ride-request"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "01K3DD177NE4NPANKEQ649WY56"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Accept Ride Request",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"from\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2789300725369284, \"lon\": 36.851940624440545\r\n        }\r\n    },\r\n    \"to\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2927030142523808, \"lon\": 36.90500335205081\r\n        }\r\n    }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/accept-ride-request/01K3DD1WVWAN7H0VTH5FMKF3XM/accept",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "accept-ride-request",
+            "01K3DD1WVWAN7H0VTH5FMKF3XM",
+            "accept"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get-accepted-ride-by-driver C",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "http://localhost:8000/get-accepted-ride-by-driver/01JZ7ZHD518V47XXNG2F42KSW7/ride-info",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "get-accepted-ride-by-driver",
+            "01JZ7ZHD518V47XXNG2F42KSW7",
+            "ride-info"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create-ride",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"start_otp\": \"6623\",\r\n    \"a\": {\r\n        \"lat\": -1.2675658355877182,\r\n        \"lon\": 36.609893102104174\r\n    },\r\n    \"b\": {\r\n        \"lat\": -1.2682170429041641,\r\n        \"lon\": 36.678952297632875\r\n    }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/create-ride/true",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "create-ride",
+            "true"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "end_ride",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"ride_path_id\": \"01JSA2RASQRWMKX29ZF7M35B2Y\",\r\n    \"geo_point\": {\r\n        \"lat\": -1.284109935678588, \"lon\": 36.8252783227025\r\n    }\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/end-ride/01JSA2T4JBBHMRJD5Y6P4M3RMT/end",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "end-ride",
+            "01JSA2T4JBBHMRJD5Y6P4M3RMT",
+            "end"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "create-subscriptions-plan",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpTSzJFSEdUUkg4N0RFNzU0Q00wVlRSOSIsImV4cCI6MTc1MzI0NjU3MiwiaWF0IjoxNzQ1NDcwNTcyfQ.iV-I_Bn77IFc7x-dLnoL-uyxRJYKTQpmVgumgUhqt6Y",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "vc",
+            "value": "Swift",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/create-subscriptions-plan/plan_taxi_per_ride?ontrial=true",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "create-subscriptions-plan",
+            "plan_taxi_per_ride"
+          ],
+          "query": [
+            {
+              "key": "ontrial",
+              "value": "true"
+            },
+            {
+              "key": "sub_id",
+              "value": "01JS8ZB5D4FQTFEGHPD2EPJPX1",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get-bs-subscription",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpTSzJFSEdUUkg4N0RFNzU0Q00wVlRSOSIsImV4cCI6MTc1MzI0NjU3MiwiaWF0IjoxNzQ1NDcwNTcyfQ.iV-I_Bn77IFc7x-dLnoL-uyxRJYKTQpmVgumgUhqt6Y",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/get-bs-subscription",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "get-bs-subscription"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "driver/upload-documents",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpRWEFTRDI5M01BUjdRUjlYN1o4V05QViIsImV4cCI6MTc1MTQ0MzM3NywiaWF0IjoxNzQzNjY3Mzc3fQ.co-XEYLpqxacROkfXbG6Vj2tuVZU8BbkaBkbsXX-zRM",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"from\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2677294103490326,\r\n            \"lon\": 36.6096463389564\r\n        }\r\n    },\r\n    \"to\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2845400079639786,\r\n            \"lon\": 36.621949631571226 \r\n        }\r\n    }\r\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/driver/upload-documents",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "driver",
+            "upload-documents"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get/driver-documents",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpTSzJFSEdUUkg4N0RFNzU0Q00wVlRSOSIsImV4cCI6MTc1MzI0NjU3MiwiaWF0IjoxNzQ1NDcwNTcyfQ.iV-I_Bn77IFc7x-dLnoL-uyxRJYKTQpmVgumgUhqt6Y",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/get-driver-documents/driver-docs/5a1de96766f616894506aa8005bf1db01b465e75b2985253478a6e27b9409942",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "get-driver-documents",
+            "driver-docs",
+            "5a1de96766f616894506aa8005bf1db01b465e75b2985253478a6e27b9409942"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "set-driver-photo",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "uuid": "bb2bf242-a54e-4e42-99d6-76c97c66ba93",
+              "src": "postman-cloud:///1f141e34-2891-4de0-b416-69c04aca7532"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://backend-api.sitwego.com/set-driver-photo",
+          "protocol": "https",
+          "host": [
+            "backend-api",
+            "sitwego",
+            "com"
+          ],
+          "path": [
+            "set-driver-photo"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get-profile-image",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/get-profile-image/01K2BTF1TQRCAHPENRFJMRPXX3/bf3259d7d0ac851bd7ccded735e8fa3fc31a9c89acf048e55135d6e04d51a9bf-Rm3Z4IgMZO",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "get-profile-image",
+            "01K2BTF1TQRCAHPENRFJMRPXX3",
+            "bf3259d7d0ac851bd7ccded735e8fa3fc31a9c89acf048e55135d6e04d51a9bf-Rm3Z4IgMZO"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get-driver-simple-profile",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "http://localhost:8000/get-driver-simple-profile",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "get-driver-simple-profile"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "set-driver-has-completed-onboarding",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpRWEFTRDI5M01BUjdRUjlYN1o4V05QViIsImV4cCI6MTc1MTQ0MzM3NywiaWF0IjoxNzQzNjY3Mzc3fQ.co-XEYLpqxacROkfXbG6Vj2tuVZU8BbkaBkbsXX-zRM",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"from\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2677294103490326,\r\n            \"lon\": 36.6096463389564\r\n        }\r\n    },\r\n    \"to\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2845400079639786,\r\n            \"lon\": 36.621949631571226 \r\n        }\r\n    }\r\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/set-driver-has-completed-onboarding",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "set-driver-has-completed-onboarding"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Rate The Driver C",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpTSzJFSEdUUkg4N0RFNzU0Q00wVlRSOSIsImV4cCI6MTc1MzI0NjU3MiwiaWF0IjoxNzQ1NDcwNTcyfQ.iV-I_Bn77IFc7x-dLnoL-uyxRJYKTQpmVgumgUhqt6Y",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"rating_value\": 4,\r\n    \"feedback_details\": \"It was a nice ride\",\r\n    \"was_offered_assistance\": false,\r\n    \"attachment_id\": \"\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/rate-driver/01JSK2EHGTRH87DE754CM0VTR9/01JSK31AA93PHP9J45B3R9KMY1",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "rate-driver",
+            "01JSK2EHGTRH87DE754CM0VTR9",
+            "01JSK31AA93PHP9J45B3R9KMY1"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Rate The Rider D",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"punctuality\": 5,\r\n    \"respectfulness\": 5,\r\n    \"fare_readiness\": 5,\r\n    \"feedback_details\": \"It was a nice ride\",\r\n    \"attachment_id\": \"\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/rate-rider/01KAZ5Q1WMH354YA4E2WKCXC5K/01KFP0ZFWAY742XCP28P5B4JT3",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "rate-rider",
+            "01KAZ5Q1WMH354YA4E2WKCXC5K",
+            "01KFP0ZFWAY742XCP28P5B4JT3"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "mpesa-prompt",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/payment/charge-phone-number/",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "payment",
+            "charge-phone-number",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "check-payment",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/payment/confirm-payment/{chekout_req_id}",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "payment",
+            "confirm-payment",
+            "{chekout_req_id}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Arrived_at_pickup_loaction",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"msg\": \"Ride update\",\r\n  \"ride_id\": \"ride_12345\",\r\n  \"at_location\": {\r\n    \"lat\": 37.7749,\r\n    \"lng\": -122.4194\r\n  },\r\n  \"time\": \"2025-09-25T07:04:00Z\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8000/driver/arrived-at-pickup-location",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "driver",
+            "arrived-at-pickup-location"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "confirm-collected-cash",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIwMUpRWEFTRDI5M01BUjdRUjlYN1o4V05QViIsImV4cCI6MTc1MTQ0MzM3NywiaWF0IjoxNzQzNjY3Mzc3fQ.co-XEYLpqxacROkfXbG6Vj2tuVZU8BbkaBkbsXX-zRM",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"from\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2677294103490326,\r\n            \"lon\": 36.6096463389564\r\n        }\r\n    },\r\n    \"to\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2845400079639786,\r\n            \"lon\": 36.621949631571226 \r\n        }\r\n    }\r\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/confirm-collected-cash/{ride_id}/false/0",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8000",
+          "path": [
+            "confirm-collected-cash",
+            "{ride_id}",
+            "false",
+            "0"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "login-customer",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"phone_number\": \"0700000000\",\r\n    \"device_id\": \"\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8090/login-customer",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8090",
+          "path": [
+            "login-customer"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "rider-cancel-ride-request",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "{{base_url}}/api/rider-cancel-ride-request/01KFGVFRBNNMWHPK1VKHY6WC59",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "rider-cancel-ride-request",
+            "01KFGVFRBNNMWHPK1VKHY6WC59"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "driver_weekly-earnings",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/get-driver-weekly-earnings-report/2026-02-18",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "get-driver-weekly-earnings-report",
+            "2026-02-18"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "daily_earnings",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{driver}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"from\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2649315453874,\r\n            \"lon\": 36.59885101684385\r\n        }\r\n    },\r\n    \"to\": {\r\n        \"geo_point\": {\r\n            \"lat\": -1.2807754756156384,\r\n            \"lon\": 36.63642693118776\r\n        }\r\n    },\r\n    \"dx\": 200.0,\r\n    \"fare\": 460,\r\n    \"duration\": 10,\r\n    \"radius\": 2000.0,\r\n    \"vehicle_type\": [\r\n        \"Swift\"\r\n    ]\r\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/get-driver-daily-earnings/2026-02-17",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "get-driver-daily-earnings",
+            "2026-02-17"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "set vc",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"vehicle_id\": \"01KFHZYV5P8MC64F7VQ3P2DQG0\",\r\n    \"categories\": [\"Standard\", \"Swift\"]\r\n}\r\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/driver/categories",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "driver",
+            "categories"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get drivers Vc",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "get-vehicle-info",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"vehicle_id\": \"01KFHZYV5P8MC64F7VQ3P2DQG0\",\r\n    \"categories\": [\"Standard\", \"Swift\"]\r\n}\r\n"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/get-driver-vehicle-categories",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "get-driver-vehicle-categories"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Upset Preferences",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"music\": \"mood\",\r\n  \"pets\": \"no_pets\"\r\n}\r\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/driver/01KFHZF6AC7KHHFMY8YTGRHCDA/preferences",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "driver",
+            "01KFHZF6AC7KHHFMY8YTGRHCDA",
+            "preferences"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Driver Preferences",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"music\": \"mood\",\r\n  \"pets\": \"no_pets\"\r\n}\r\n"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/driver/01KFHZF6AC7KHHFMY8YTGRHCDA/preferences",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "driver",
+            "01KFHZF6AC7KHHFMY8YTGRHCDA",
+            "preferences"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "upset bio",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"bio\": \"Software engineer who loves road trips.\"\r\n}\r\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/profile/bio",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "profile",
+            "bio"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "rating summary",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/driver/01KFHZF6AC7KHHFMY8YTGRHCDA/rating-summary",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "driver",
+            "01KFHZF6AC7KHHFMY8YTGRHCDA",
+            "rating-summary"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update device token",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{dr}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": false
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"device_type\": \"android\",\r\n    \"device_token\": \"fcm-token-here\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/profile/device-info",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "profile",
+            "device-info"
+          ]
+        },
+        "description": "Generated from cURL: curl -X PUT \"{{base_url}}/api/profile/device-info\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer {{token}}\" -d '{\"device_type\": \"android\", \"device_token\": \"fcm-token-here\"}'"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Rider ride history",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/customer/ride-history?account_type=personal&page=0&page_size=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "customer",
+            "ride-history"
+          ],
+          "query": [
+            {
+              "key": "account_type",
+              "value": "personal"
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "page_size",
+              "value": "20"
+            }
+          ]
+        },
+        "description": "Generated from cURL: curl -X GET \"{{base_url}}/api/customer/ride-history?account_type=personal&page=0&page_size=20\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer {{token}}\""
+      },
+      "response": []
+    },
+    {
+      "name": "get-ride-details",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/customer/rides/",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "customer",
+            "rides",
+            ""
+          ]
+        },
+        "description": "Generated from cURL: curl -X GET \"{{base_url}}/api/customer/rides/:ride_id\" -H \"Content-Type: application/json\""
+      },
+      "response": []
+    },
+    {
+      "name": "get-customer-profile",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": false
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/customer/profile",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "customer",
+            "profile"
+          ]
+        },
+        "description": "Generated from cURL: curl -X GET \"{{base_url}}/api/customer/profile\" -H \"Content-Type: application/json\""
+      },
+      "response": []
+    },
+    {
+      "name": "2fa-send",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": false
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"phone_number\": \"+254711000111\",\r\n    \"channel\": \"sms\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/2fa/send",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "2fa",
+            "send"
+          ]
+        },
+        "description": "Generated from cURL: curl -X POST '{{base_url}}/api/2fa/send' -H 'Content-Type: application/json' -d '{\"phone_number\": \"+254711000111\", \"channel\": \"sms\"}'"
+      },
+      "response": []
+    },
+    {
+      "name": "get fare history",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customer}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{local_base_url}}api/rides/:ride_id/fare/history",
+          "host": [
+            "{{local_base_url}}api"
+          ],
+          "path": [
+            "rides",
+            ":ride_id",
+            "fare",
+            "history"
+          ],
+          "variable": [
+            {
+              "key": "ride_id",
+              "value": "01KS5BVHVTWSCM5CZAX6KDKS5X"
+            }
+          ]
+        },
+        "description": "Generated from cURL: curl -X GET \"{{base_url}}/api/rides/:ride_id/fare/history\""
+      },
+      "response": []
+    },
+    {
+      "name": "2fa-verify",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "disabled": false
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n    \"phone_number\": \"+254711000111\",\r\n    \"code\": \"123456\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/2fa/verify",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "2fa",
+            "verify"
+          ]
+        },
+        "description": "Generated from cURL: curl -X POST '{{base_url}}/api/2fa/verify' -H 'Content-Type: application/json' -d '{\"phone_number\": \"+254711000111\", \"code\": \"123456\"}'"
+      },
+      "response": []
+    },
+    {
+      "name": "Driver",
+      "item": [
+        {
+          "name": "Get Rating Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/driver/{{driver_id}}/rating-summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "driver",
+                "{{driver_id}}",
+                "rating-summary"
+              ]
+            },
+            "description": "Returns the driver's rating summary: average, total reviews, recommendation %, star breakdown, and 10 most recent reviews."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has expected fields\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('average');",
+                  "    pm.expect(body).to.have.property('totalReviews');",
+                  "    pm.expect(body).to.have.property('recommendPercent');",
+                  "    pm.expect(body.breakdown).to.be.an('array').with.lengthOf(5);",
+                  "    pm.expect(body.recentReviews).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Create Customer Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact_data\": {\n    \"email\": \"jane@example.com\",\n    \"phone_number\": \"+254711000111\"\n  },\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Doe\",\n  \"gender\": \"female\",\n  \"mobile_country_code\": \"+254\",\n  \"password\": \"SecurePass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/create-profile/customer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "create-profile",
+                "customer"
+              ]
+            },
+            "description": "Register a new customer (rider) account. Returns a `profile_id` and a JWT `token` for immediate authentication. No auth header required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has profile_id and token\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('profile_id');",
+                  "    pm.expect(body).to.have.property('token');",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.token) { pm.collectionVariables.set('token', body.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Driver Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact_data\": {\n    \"email\": \"john.driver@example.com\",\n    \"phone_number\": \"+254722000222\"\n  },\n  \"first_name\": \"John\",\n  \"last_name\": \"Driver\",\n  \"gender\": \"male\",\n  \"mobile_country_code\": \"+254\",\n  \"password\": \"SecurePass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/create-profile/driver",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "create-profile",
+                "driver"
+              ]
+            },
+            "description": "Register a new driver account. Returns a `profile_id` and a JWT `token` for immediate authentication. No auth header required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has profile_id and token\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('profile_id');",
+                  "    pm.expect(body).to.have.property('token');",
+                  "});",
+                  "const body = pm.response.json();",
+                  "if (body.token) { pm.collectionVariables.set('token', body.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save Bio",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Software engineer who loves road trips.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/profile/bio",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "profile",
+                "bio"
+              ]
+            },
+            "description": "Save bio and optional date of birth for the authenticated profile. Requires a valid Bearer token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2FA",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+254711000111\",\n  \"channel\": \"sms\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/2fa/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "2fa",
+                "send"
+              ]
+            },
+            "description": "Send a one-time passcode to the given phone number via Twilio Verify.\n\n- `phone_number` — E.164 format, e.g. `\"+254711000111\"`\n- `channel` — `\"sms\"` (default) | `\"call\"` | `\"whatsapp\"`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has sid and status\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('sid');",
+                  "    pm.expect(body).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+254711000111\",\n  \"code\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/2fa/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "2fa",
+                "verify"
+              ]
+            },
+            "description": "Check the OTP code entered by the user.\n\nReturns `{ \"approved\": true }` on success.\nReturns `401 Unauthorized` with a validation error if the code is wrong or expired."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"approved is true\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.approved).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customer",
+      "item": [
+        {
+          "name": "Patch Customer Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Doe\",\n  \"mobile_country_code\": \"+254\",\n  \"dob\": \"1995-06-15\",\n  \"avatar_url\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/customer/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customer",
+                "profile"
+              ]
+            },
+            "description": "Partially update the authenticated rider's profile. Only fields included in the body are changed. All fields are optional.\n\n- `dob` must be in YYYY-MM-DD format if provided.\n- `avatar_url` maps to `face_image_id` in the DB."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upsert Customer Address",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"street\": \"123 Ngong Road\",\n  \"city\": \"Nairobi\",\n  \"state\": \"Nairobi County\",\n  \"zip\": \"00100\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/customer/profile/address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customer",
+                "profile",
+                "address"
+              ]
+            },
+            "description": "Create or replace the rider's saved address. If no address row exists it is inserted; otherwise it is updated. Any field can be null to clear it."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rides — Additional Stop",
+      "description": "Rider adds one optional intermediate stop (Pickup → Stop → DropOff).\n\nFlow: run 1 → 2 in order (2 consumes variables chained by 1's test script); 3 cancels an unanswered dispatch; 4 needs a driver to have accepted; 5 adds a stop mid-ride to an accepted/in-progress DIRECT ride (see its description). The unnumbered requests are standalone contract checks.\n\nPrereqs: `token` = rider Bearer token, `driver_id` set for request 4, OSRM + Redis + Postgres up (migration 202607081100000_ride_request_stops.sql applied).",
+      "item": [
+        {
+          "name": "1. Fare Estimation — with stop",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": {\n    \"geo_point\": {\n      \"lat\": -1.28472,\n      \"lon\": 36.82194\n    },\n    \"place_id\": \"poi-cbd-kencom\",\n    \"street\": \"Moi Avenue\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"CBD\",\n    \"country\": \"Kenya\"\n  },\n  \"to\": {\n    \"geo_point\": {\n      \"lat\": -1.26361,\n      \"lon\": 36.80339\n    },\n    \"place_id\": \"poi-westlands-oval\",\n    \"street\": \"Ring Road Parklands\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"Westlands\",\n    \"country\": \"Kenya\"\n  },\n  \"stops\": [\n    {\n      \"geo_point\": {\n        \"lat\": -1.29234,\n        \"lon\": 36.7887\n      },\n      \"place_id\": \"poi-yaya-centre\",\n      \"street\": \"Argwings Kodhek Rd\",\n      \"city\": \"Nairobi\",\n      \"ward\": \"Kilimani\",\n      \"country\": \"Kenya\",\n      \"instructions\": \"Wait at the main entrance, rider picking up a package\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/ride-fair-estimation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ride-fair-estimation"
+              ]
+            },
+            "description": "Estimate a ride routed Pickup → Stop → DropOff. `stops` is optional (max 1 for now — MAX_RIDE_STOPS); distance/duration/fares include the detour because OSRM routes through the waypoint.\n\nChains `search_req_id`, `ride_dx`, `ride_duration_s` and `ride_fare` collection variables for request 2.\n\nNeeds OSRM reachable (dev: ROUTES_API_URL or 127.0.0.1:5000) and a rider Bearer token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Has search_req_id, route and estimates\", function () {",
+                  "    pm.expect(res.search_req_id).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(res.line_str).to.be.an(\"array\").and.not.empty;",
+                  "    pm.expect(res.distance).to.be.a(\"number\");",
+                  "    pm.expect(res.estimates).to.be.an(\"array\").and.not.empty;",
+                  "});",
+                  "// Chain values into 2. Send Ride Request — with stop",
+                  "pm.collectionVariables.set(\"search_req_id\", res.search_req_id);",
+                  "pm.collectionVariables.set(\"ride_dx\", res.distance);",
+                  "// duration is a [value, \"minutes\"|\"hours\"] tuple; the app sends seconds",
+                  "const secs = res.duration[1] === \"hours\"",
+                  "    ? res.duration[0] * 3600",
+                  "    : res.duration[0] * 60;",
+                  "pm.collectionVariables.set(\"ride_duration_s\", secs);",
+                  "pm.collectionVariables.set(\"ride_fare\", Math.round(res.estimates[0].final_fare));",
+                  "console.log(\"estimate:\", res.distance, \"km,\", res.duration.join(\" \"),",
+                  "    \"fare\", res.estimates[0].final_fare, \"via\", res.estimates[0].category);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Send Ride Request — with stop",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": {\n    \"geo_point\": {\n      \"lat\": -1.28472,\n      \"lon\": 36.82194\n    },\n    \"place_id\": \"poi-cbd-kencom\",\n    \"street\": \"Moi Avenue\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"CBD\",\n    \"country\": \"Kenya\"\n  },\n  \"to\": {\n    \"geo_point\": {\n      \"lat\": -1.26361,\n      \"lon\": 36.80339\n    },\n    \"place_id\": \"poi-westlands-oval\",\n    \"street\": \"Ring Road Parklands\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"Westlands\",\n    \"country\": \"Kenya\"\n  },\n  \"stops\": [\n    {\n      \"geo_point\": {\n        \"lat\": -1.29234,\n        \"lon\": 36.7887\n      },\n      \"place_id\": \"poi-yaya-centre\",\n      \"street\": \"Argwings Kodhek Rd\",\n      \"city\": \"Nairobi\",\n      \"ward\": \"Kilimani\",\n      \"country\": \"Kenya\",\n      \"instructions\": \"Wait at the main entrance, rider picking up a package\"\n    }\n  ],\n  \"fare\": {{ride_fare}},\n  \"dx\": {{ride_dx}},\n  \"duration\": {{ride_duration_s}},\n  \"radius\": 2000.0,\n  \"vehicle_type\": [\"Standard\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/send-ride-request?q={{search_req_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "send-ride-request"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{search_req_id}}"
+                }
+              ]
+            },
+            "description": "Dispatch the ride request to nearby drivers. `stops` must match what was sent to /ride-fair-estimation for this search_req_id — fare/dx/duration were estimated through the stop (chained from request 1).\n\nThe stop is persisted in `ride_request_stops` and included in the driver's offer notification. Cancel an unanswered dispatch with request 3."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Dispatch registered under search_req_id\", function () {",
+                  "    pm.expect(res.resp).to.be.an(\"array\");",
+                  "    pm.expect(res.resp[0]).to.eql(pm.collectionVariables.get(\"search_req_id\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Rider Cancel Ride Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rider-cancel-ride-request/{{search_req_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rider-cancel-ride-request",
+                "{{search_req_id}}"
+              ]
+            },
+            "description": "Cancel the in-flight dispatch started by request 2 (cleanup between test runs). Returns 200 even if dispatch already finished."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Get Accepted Ride By Driver — includes stops",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/get-accepted-ride-by-driver/{{search_req_id}}/{{driver_id}}/ride-details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "get-accepted-ride-by-driver",
+                "{{search_req_id}}",
+                "{{driver_id}}",
+                "ride-details"
+              ]
+            },
+            "description": "Ride details after a driver accepted the request (drive the accept from the driver app or POST /accept-ride-request/{ride_id}/{vc}/accept with a driver token). Response now carries `stops`: location rows in visit order, empty for direct rides."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const res = pm.response.json();",
+                  "pm.test(\"stops is an ordered array of locations\", function () {",
+                  "    pm.expect(res.stops).to.be.an(\"array\");",
+                  "    if (res.stops.length > 0) {",
+                  "        pm.expect(res.stops[0]).to.have.property(\"lat\");",
+                  "        pm.expect(res.stops[0]).to.have.property(\"lon\");",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Add Stop Mid-Ride",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stop\": {\n    \"geo_point\": {\n      \"lat\": -1.3006,\n      \"lon\": 36.7819\n    },\n    \"place_id\": \"poi-prestige-plaza\",\n    \"street\": \"Ngong Rd\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"Kilimani\",\n    \"country\": \"Kenya\",\n    \"instructions\": \"Quick pharmacy stop, rider will be 3 minutes\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ride/{{search_req_id}}/add-stop",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ride",
+                "{{search_req_id}}",
+                "add-stop"
+              ]
+            },
+            "description": "Rider adds one stop to a ride that is already matched or in progress. The backend reprices by the detour delta (two OSRM routes from the driver's live position — or the pickup before the trip starts), updates ride_requests.fare/ride.fare, records a `stop_added` fare snapshot (in-progress rides), refreshes the cached route polyline, and publishes a StopAddedEvent to both apps' gRPC event streams.\n\nPrereqs: the ride for {{search_req_id}} must be Accepted/Arrived/Waitingforrider/Inprogress, belong to this rider token, and have NO stop yet (MAX_RIDE_STOPS = 1) — run the 1→2 flow with `stops` removed from both bodies, then have a driver accept. Running this twice returns 400 (cap reached); cancelled/completed rides return 400 too."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const res = pm.response.json();",
+                  "pm.test(\"Fare never decreases and delta is consistent\", function () {",
+                  "    pm.expect(res.new_fare).to.be.at.least(res.old_fare);",
+                  "    pm.expect(res.new_fare - res.old_fare).to.eql(res.fare_delta);",
+                  "});",
+                  "pm.test(\"New remaining route and detour metrics present\", function () {",
+                  "    pm.expect(res.line_str).to.be.an(\"array\").and.not.empty;",
+                  "    pm.expect(res.added_distance_km).to.be.at.least(0);",
+                  "    pm.expect(res.added_duration_seconds).to.be.at.least(0);",
+                  "});",
+                  "console.log(\"stop added: fare\", res.old_fare, \"→\", res.new_fare,",
+                  "    \"(+\", res.fare_delta, \"), detour\", res.added_distance_km, \"km /\",",
+                  "    res.added_duration_seconds, \"s\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fare Estimation — legacy body (no stops)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": {\n    \"geo_point\": {\n      \"lat\": -1.28472,\n      \"lon\": 36.82194\n    },\n    \"place_id\": \"poi-cbd-kencom\",\n    \"street\": \"Moi Avenue\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"CBD\",\n    \"country\": \"Kenya\"\n  },\n  \"to\": {\n    \"geo_point\": {\n      \"lat\": -1.26361,\n      \"lon\": 36.80339\n    },\n    \"place_id\": \"poi-westlands-oval\",\n    \"street\": \"Ring Road Parklands\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"Westlands\",\n    \"country\": \"Kenya\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/ride-fair-estimation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ride-fair-estimation"
+              ]
+            },
+            "description": "Backward-compat check: bodies from app versions that predate the stop feature (no `stops` key) must behave exactly as before."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Direct ride still estimates\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.search_req_id).to.be.a(\"string\").and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fare Estimation — 2 stops rejected (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": {\n    \"geo_point\": {\n      \"lat\": -1.28472,\n      \"lon\": 36.82194\n    },\n    \"place_id\": \"poi-cbd-kencom\",\n    \"street\": \"Moi Avenue\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"CBD\",\n    \"country\": \"Kenya\"\n  },\n  \"to\": {\n    \"geo_point\": {\n      \"lat\": -1.26361,\n      \"lon\": 36.80339\n    },\n    \"place_id\": \"poi-westlands-oval\",\n    \"street\": \"Ring Road Parklands\",\n    \"city\": \"Nairobi\",\n    \"ward\": \"Westlands\",\n    \"country\": \"Kenya\"\n  },\n  \"stops\": [\n    {\n      \"geo_point\": {\n        \"lat\": -1.29234,\n        \"lon\": 36.7887\n      },\n      \"place_id\": \"poi-yaya-centre\",\n      \"street\": \"Argwings Kodhek Rd\",\n      \"city\": \"Nairobi\",\n      \"ward\": \"Kilimani\",\n      \"country\": \"Kenya\",\n      \"instructions\": \"Wait at the main entrance, rider picking up a package\"\n    },\n    {\n      \"geo_point\": {\n        \"lat\": -1.29234,\n        \"lon\": 36.7887\n      },\n      \"place_id\": \"poi-yaya-centre\",\n      \"street\": \"Argwings Kodhek Rd\",\n      \"city\": \"Nairobi\",\n      \"ward\": \"Kilimani\",\n      \"country\": \"Kenya\",\n      \"instructions\": \"Wait at the main entrance, rider picking up a package\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/ride-fair-estimation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ride-fair-estimation"
+              ]
+            },
+            "description": "Validation check: more than MAX_RIDE_STOPS (currently 1) intermediate stops must be rejected with 400 before any routing happens."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error names the stop cap\", function () {",
+                  "    pm.expect(pm.response.text()).to.include(\"at most 1\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "driver",
+      "value": ""
+    },
+    {
+      "key": "customer",
+      "value": ""
+    },
+    {
+      "key": "dr1",
+      "value": ""
+    },
+    {
+      "key": "search_req_id",
+      "value": ""
+    },
+    {
+      "key": "cu",
+      "value": ""
+    },
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "driver_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ride_dx",
+      "value": ""
+    },
+    {
+      "key": "ride_duration_s",
+      "value": ""
+    },
+    {
+      "key": "ride_fare",
+      "value": ""
+    }
+  ]
+}

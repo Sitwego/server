@@ -120,7 +120,7 @@ impl GetFairEstimates for Database {
         category: &VehicleCategory,
     ) -> Result<Option<vehicle_categories::Model>> {
         let pricing = vehicle_categories::Entity::find()
-            .filter(vehicle_categories::Column::Category.eq(category.clone()))
+            .filter(vehicle_categories::Column::Category.eq(*category))
             .one(self.conn())
             .await?;
         Ok(pricing)
@@ -156,16 +156,17 @@ impl GetFairEstimates for Database {
     }
 }
 
-// Struct for fare calculation results
+// Struct for fare calculation results. Fields are public so read-only
+// consumers (e.g. the beckn-bpp-adapter's discovery quote) can use them.
 #[derive(Debug, Serialize)]
 pub struct FareEstimate {
-    category: String,
-    base_fare: i32,
-    distance_cost: i32,
-    waiting_cost: i32,
-    total_before_discount: i32,
-    discount: f32,
-    final_fare: f32,
+    pub category: String,
+    pub base_fare: i32,
+    pub distance_cost: i32,
+    pub waiting_cost: i32,
+    pub total_before_discount: i32,
+    pub discount: f32,
+    pub final_fare: f32,
 }
 fn calculate_fare_for_category(
     pricing: &vehicle_categories::Model,

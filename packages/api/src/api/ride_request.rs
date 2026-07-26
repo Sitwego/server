@@ -33,6 +33,10 @@ pub struct RequestRideData {
 pub struct RequestDriver {
     pub from: RequestRideData,
     pub to: RequestRideData,
+    /// Intermediate stops between `from` and `to`, in visit order. Empty for
+    /// direct rides. Capped at `MAX_RIDE_STOPS` at the API boundary.
+    #[serde(default)]
+    pub stops: Vec<RequestRideData>,
     pub fare: i32,
     pub dx: f64,
     pub duration: i32,

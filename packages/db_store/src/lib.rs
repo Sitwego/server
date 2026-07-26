@@ -35,6 +35,21 @@ impl Database {
         })
     }
 
+    /// Wrap an already-established [`DatabaseConnection`] — notably a
+    /// `sea_orm::MockDatabase` connection in tests — without opening a real pool.
+    /// The stored `ConnectOptions` are a placeholder; only `pool` is exercised.
+    pub fn from_connection(
+        pool: DatabaseConnection,
+        executor: executor::Executor,
+    ) -> Self {
+        Self {
+            options: ConnectOptions::new(String::new()),
+            pool,
+            rng: Mutex::new(StdRng::seed_from_u64(0)),
+            executor,
+        }
+    }
+
     pub fn options(&self) -> &ConnectOptions {
         &self.options
     }

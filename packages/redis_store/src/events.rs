@@ -118,6 +118,12 @@ pub async fn run_event_consumer(
         let response = match result {
             Ok(r) => r,
             Err(e) => {
+                // A blocked read that expires with no messages returns RESP
+                // nil, which fred reports as a map-conversion parse error —
+                // that's an idle stream, not a failure.
+                if e.details().contains("Cannot convert to map") {
+                    continue;
+                }
                 tracing::error!(stream, error = %e, "xreadgroup_map failed, retrying in 1 s");
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 continue;
@@ -288,11 +294,59 @@ pub struct DriverInfo {
 pub struct RideStartPayload {
     pub start_location: GeoLocation,
     pub destination: GeoLocation,
+    /// Intermediate stops in visit order; empty for direct rides.
+    /// `default` keeps events published by older API pods deserializable.
+    #[serde(default)]
+    pub stops: Vec<GeoLocation>,
     pub estimated_fare: f64,
     pub vehicle_type: String,
     pub vehicle_number: String,
     pub driver_info: Option<DriverInfo>,
     pub estimated_duration: i32,
+}
+
+/// Rider added an intermediate stop mid-ride. Mirrors the notification
+/// service's `RideEvent { event_payload: StopAdded }` proto shape — that
+/// service must be deployed before an API that publishes this (an unknown
+/// oneof key is a serde error there → the event is ACKed and dropped).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StopAddedEvent {
+    pub event_id: String,
+    pub timestamp: i64,
+    pub event_type: String,
+    pub ride_id: String,
+    pub driver_id: String,
+    pub rider_id: String,
+    pub priority: i32,
+    pub ack_required: bool,
+    pub event_payload: StopAddedEventPayload,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StopAddedEventPayload {
+    #[serde(rename = "StopAdded")]
+    pub stop_added: StopAddedPayload,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StopAddedPayload {
+    pub stop: GeoLocation,
+    pub old_fare: f64,
+    pub new_fare: f64,
+    /// Remaining route (driver position → stop → drop-off) replacing the one
+    /// currently displayed. `(lon, lat)` — same orientation as the REST
+    /// `line_str`/`p1` polylines.
+    pub new_route: Vec<RoutePoint>,
+    pub added_distance_km: f64,
+    pub added_duration_seconds: i64,
+}
+
+/// Bare route vertex for event-borne polylines — `GeoLocation` would carry
+/// an address/place_id per point, and routes run to hundreds of points.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RoutePoint {
+    pub longitude: f64,
+    pub latitude: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

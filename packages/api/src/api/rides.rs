@@ -13,7 +13,8 @@ use redis_store::{
         DriverArrivedEventPayload, DriverArrivedPayload, EventPayload,
         GeoLocation, RIDE_EVENTS_STREAM, RideCancelPayload, RideCanceledEvent,
         RideEndEvent, RideEndEventPayload, RideEndPayload, RideStartEvent,
-        RideStartEventPayload, RideStartPayload,
+        RideStartEventPayload, RideStartPayload, RoutePoint, StopAddedEvent,
+        StopAddedEventPayload, StopAddedPayload,
     },
     r_types::{GeoPoint, LocationEvent},
 };
@@ -50,6 +51,7 @@ use crate::{
     },
     dispatch::state_machine::{
         DispatchEvent, DriverResponse, RideSearchResult, find_nearest_driver,
+        transform_ride_request_location_data,
     },
     queries::{
         customer::get_customer_profile::GetRiderProfile,
@@ -273,6 +275,31 @@ pub async fn create_ride(
         // accept_ride_request); just read it back here.
         let pickup_fare = ride_info.pickup_fare.unwrap_or(0);
 
+        // Intermediate stops persisted at dispatch time; surfaced on the
+        // ride-status stream so both apps can render them. Best-effort — a
+        // fetch failure must not block the ride from starting.
+        let stops = ctx
+            .db
+            .get_ride_request_stops(&ride_info.ride_id)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::error!(
+                    tag = "create_ride",
+                    ride_id = %ride_info.ride_id.0,
+                    error = %err,
+                    "Failed to fetch ride request stops for start event"
+                );
+                Vec::new()
+            })
+            .into_iter()
+            .map(|s| GeoLocation {
+                latitude: s.lat,
+                longitude: s.lon,
+                address: s.street.unwrap_or_else(|| "null".to_string()),
+                place_id: s.place_id.unwrap_or_else(|| "null".to_string()),
+            })
+            .collect::<Vec<_>>();
+
         let ride_start_event = RideStartEvent {
             event_id: ulid_string(),
             timestamp: Utc::now().timestamp_millis(),
@@ -296,6 +323,7 @@ pub async fn create_ride(
                         address: "null".to_string(),
                         place_id: "null".to_string(),
                     },
+                    stops,
                     estimated_fare,
                     vehicle_type: "null".to_string(),
                     vehicle_number: "null".to_string(),
@@ -412,10 +440,36 @@ pub async fn create_ride(
     }
 }
 
+/// Maximum intermediate stops allowed per ride request.
+/// FOLLOW-UP: raise this cap to enable multi-stop rides — the `stops` array
+/// contract, waypoint routing, and the `ride_request_stops` table (keyed by
+/// `stop_order`) all support N stops already; only this constant gates it.
+pub const MAX_RIDE_STOPS: usize = 1;
+
+/// Flattens the optional `stops` array and enforces `MAX_RIDE_STOPS`.
+/// `None`/`[]` both mean a direct ride (backward compatible).
+fn validate_stops(
+    stops: Option<Vec<RequestRideData>>,
+) -> Result<Vec<RequestRideData>, AppError> {
+    let stops = stops.unwrap_or_default();
+    if stops.len() > MAX_RIDE_STOPS {
+        return Err(AppError::ValidationError(format!(
+            "at most {} intermediate stop(s) supported, got {}",
+            MAX_RIDE_STOPS,
+            stops.len()
+        )));
+    }
+    Ok(stops)
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RideReq {
     from: RequestRideData,
     to: RequestRideData,
+    /// Optional intermediate stops (Pickup → Stop → DropOff), max
+    /// `MAX_RIDE_STOPS`. Omitted or empty keeps the direct-ride behavior.
+    #[serde(default)]
+    stops: Option<Vec<RequestRideData>>,
 }
 #[derive(Debug, Serialize)]
 pub struct FairEstimateResponse {
@@ -431,7 +485,8 @@ pub async fn ride_fair_estimation(
     Extension(ctx): Extension<Arc<APIContext>>,
     Json(body): Json<RideReq>,
 ) -> Result<Json<FairEstimateResponse>, AppError> {
-    let RideReq { from, to } = body.clone();
+    let RideReq { from, to, stops } = body.clone();
+    let stops = validate_stops(stops)?;
 
     #[cfg(feature = "reqwest-middleware")]
     let (line_str, dx, dr) = {
@@ -441,10 +496,14 @@ pub async fn ride_fair_estimation(
             std::env::var("ROUTES_API_URL").expect("ROUTES_API_URL must be set")
         };
         let route_query = RidesApiClient::new_with_retry(&base_url, None);
-        let coords = [
-            (from.geo_point.lon.0, from.geo_point.lat.0),
-            (to.geo_point.lon.0, to.geo_point.lat.0),
-        ];
+        // Route pickup → stops → drop-off; OSRM treats the middle coordinates
+        // as via-waypoints and sums distance/duration across the legs.
+        let mut coords = Vec::with_capacity(stops.len() + 2);
+        coords.push((from.geo_point.lon.0, from.geo_point.lat.0));
+        coords.extend(
+            stops.iter().map(|s| (s.geo_point.lon.0, s.geo_point.lat.0)),
+        );
+        coords.push((to.geo_point.lon.0, to.geo_point.lat.0));
         let route = route_query
             .get_ride_path_and_distance(
                 &coords,
@@ -532,6 +591,10 @@ pub struct SendRideReqQr {
 pub struct SendRideRequestData {
     from: RequestRideData,
     to: RequestRideData,
+    /// Must match the stops sent to /ride-fair-estimation for this
+    /// `search_req_id` — dx/duration/fare were estimated through them.
+    #[serde(default)]
+    stops: Option<Vec<RequestRideData>>,
     fare: i32,
     dx: f64,
     duration: i32,
@@ -578,9 +641,11 @@ pub async fn send_ride_request(
         return Err(AppError::NotFound("Rider profile not found".to_string()));
     };
 
+    let stops = validate_stops(data.stops)?;
     let request = RequestDriver {
         from: data.from,
         to: data.to,
+        stops,
         fare: round_to_nearest_ten(data.fare as f64) as i32,
         dx: data.dx,
         duration: data.duration,
@@ -673,16 +738,389 @@ pub async fn rider_cancel_ride_request(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AddRideStopBody {
+    pub stop: RequestRideData,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AddRideStopResponse {
+    pub old_fare: f64,
+    pub new_fare: f64,
+    pub fare_delta: i32,
+    /// New remaining route (origin → stop → drop-off), `(lon, lat)` pairs
+    /// like the estimate's `line_str`.
+    pub line_str: Vec<(f64, f64)>,
+    pub added_distance_km: f64,
+    pub added_duration_seconds: i64,
+}
+
+/// Detour surcharge for a mid-ride stop. Both estimates share the same
+/// origin, so the base fare cancels and only the extra distance/time is
+/// priced. Never negative — a shorter reroute doesn't discount a fare the
+/// rider already agreed to. Rounded like the fare at request time.
+fn stop_fare_delta(old_final_fare: f32, new_final_fare: f32) -> i32 {
+    round_to_nearest_ten((new_final_fare - old_final_fare).max(0.0) as f64)
+        as i32
+}
+
+/// Rider adds one intermediate stop to a ride that is already matched or
+/// under way. Reprices the ride by the detour delta (two OSRM routes from
+/// the same origin), persists stop + fares atomically, refreshes the cached
+/// trip polyline, and publishes a `StopAddedEvent` so both apps update live.
+pub async fn add_ride_stop(
+    Extension(ctx): Extension<Arc<APIContext>>,
+    Extension(client_id): Extension<String>,
+    Path(ride_id): Path<RideId>,
+    Json(body): Json<AddRideStopBody>,
+) -> Result<Json<AddRideStopResponse>, AppError> {
+    let ride_request = ctx
+        .db
+        .get_ride_request_by_id(&ride_id)
+        .await
+        .map_err(|err| AppError::InternalError(err.to_string()))?
+        .ok_or_else(|| {
+            AppError::NotFound("Ride request not found".to_string())
+        })?;
+
+    if ride_request.customer_id != client_id {
+        return Err(AppError::Unauthorized(
+            "Only the rider on this ride can add a stop".to_string(),
+        ));
+    }
+
+    if !matches!(
+        ride_request.request_status,
+        RideRequestStatus::Accepted
+            | RideRequestStatus::Arrived
+            | RideRequestStatus::Waitingforrider
+            | RideRequestStatus::Inprogress
+    ) {
+        return Err(AppError::ValidationError(format!(
+            "stops can only be added to an active ride, status is {}",
+            ride_request.request_status
+        )));
+    }
+
+    // Cheap pre-check before any routing; add_ride_request_stop re-checks
+    // the cap inside its transaction, so concurrent adds can't slip through.
+    let existing_stops = ctx
+        .db
+        .get_ride_request_stops(&ride_id)
+        .await
+        .map_err(|err| AppError::InternalError(err.to_string()))?;
+    if existing_stops.len() >= MAX_RIDE_STOPS {
+        return Err(AppError::ValidationError(format!(
+            "at most {} intermediate stop(s) supported, ride already has {}",
+            MAX_RIDE_STOPS,
+            existing_stops.len()
+        )));
+    }
+
+    let (from, to) = ctx
+        .db
+        .get_ride_request_endpoints(
+            &ride_request.from_location_id,
+            &ride_request.to_location_id,
+        )
+        .await
+        .map_err(|err| AppError::InternalError(err.to_string()))?;
+    let (from, to) = from.zip(to).ok_or_else(|| {
+        AppError::InternalError(
+            "Ride request from/to locations missing".to_string(),
+        )
+    })?;
+
+    let driver_id = DriverId(ride_request.driver_id.clone());
+    let driver_location =
+        get_driver_location_info(&ctx.redis, driver_id.to_owned()).await;
+    let ride_info = get_ride_info(&ctx.redis, driver_id.to_owned()).await;
+
+    // Remaining-route origin: the driver's live position once the trip is
+    // under way, else the pickup (pre-pickup the trip route still starts
+    // there). Both routes share this origin, so the fare delta prices only
+    // the detour.
+    let pickup_point = GeoPoint {
+        lat: Latitude(from.lat),
+        lon: Longitude(from.lon),
+    };
+    let origin = if ride_request.request_status == RideRequestStatus::Inprogress
+    {
+        match driver_location.as_ref() {
+            Some(info) => info.position_info.location.to_owned(),
+            None => {
+                tracing::warn!(
+                    tag = "add_ride_stop",
+                    ride_id = %ride_id.0,
+                    "No live driver position cached — routing detour from pickup"
+                );
+                pickup_point
+            }
+        }
+    } else {
+        pickup_point
+    };
+
+    #[cfg(feature = "reqwest-middleware")]
+    let ((old_dx_m, old_dr_s), (new_line, new_dx_m, new_dr_s)) = {
+        let base_url = if ctx.config.is_dev() {
+            "http://127.0.0.1:5000".to_string()
+        } else {
+            std::env::var("ROUTES_API_URL").expect("ROUTES_API_URL must be set")
+        };
+        let route_query = RidesApiClient::new_with_retry(&base_url, None);
+        let query = "overview=full&steps=true&geometries=geojson";
+        let direct_coords = [(origin.lon.0, origin.lat.0), (to.lon, to.lat)];
+        let detour_coords = [
+            (origin.lon.0, origin.lat.0),
+            (body.stop.geo_point.lon.0, body.stop.geo_point.lat.0),
+            (to.lon, to.lat),
+        ];
+        let fetch = |coords: Vec<(f64, f64)>| {
+            let route_query = &route_query;
+            async move {
+                let raw = route_query
+                    .get_ride_path_and_distance(&coords, query)
+                    .await
+                    .map_err(|err| {
+                        AppError::InternalError(format!(
+                            "Failed to route stop detour: {:?}",
+                            err
+                        ))
+                    })?;
+                parse_from_string(&raw)
+                    .map_err(|err| AppError::InternalError(err.to_string()))
+            }
+        };
+        let (direct, detour) = tokio::try_join!(
+            fetch(direct_coords.to_vec()),
+            fetch(detour_coords.to_vec())
+        )?;
+        ((direct.1, direct.2), detour)
+    };
+
+    let vehicle_category = ride_info
+        .as_ref()
+        .map(|info| info.vehicle_category.to_owned())
+        .or_else(|| {
+            driver_location
+                .as_ref()
+                .map(|info| info.position_info.vehicle_category.to_owned())
+        })
+        .ok_or_else(|| {
+            AppError::InternalError(
+                "Vehicle category unavailable for repricing".to_string(),
+            )
+        })?;
+    let vc = [vehicle_category];
+
+    let (old_estimates, new_estimates) = tokio::try_join!(
+        ctx.db.get_fair_estimate(
+            &vc,
+            meters_to_km(old_dx_m) as f32,
+            0,
+            false,
+            seconds_to_minutes(old_dr_s) as i32,
+        ),
+        ctx.db.get_fair_estimate(
+            &vc,
+            meters_to_km(new_dx_m) as f32,
+            0,
+            false,
+            seconds_to_minutes(new_dr_s) as i32,
+        ),
+    )
+    .map_err(|err| {
+        AppError::InternalError(format!(
+            "Failed to reprice ride for stop: {:?}",
+            err
+        ))
+    })?;
+    let (old_estimate, new_estimate) =
+        old_estimates.first().zip(new_estimates.first()).ok_or_else(|| {
+            AppError::InternalError(
+                "No pricing found for vehicle category".to_string(),
+            )
+        })?;
+    let fare_delta =
+        stop_fare_delta(old_estimate.final_fare, new_estimate.final_fare);
+
+    let old_fare_dec = ride_request.fare;
+    let new_fare_dec = old_fare_dec + rust_decimal::Decimal::from(fare_delta);
+    let old_fare = old_fare_dec.to_f64().unwrap_or(0.0);
+    let new_fare = new_fare_dec.to_f64().unwrap_or(old_fare);
+
+    // Stop row + repriced ride_requests.fare/ride.fare in one transaction —
+    // end_ride reports final_fare from ride.fare, so this must not be
+    // partial. The inner Result carries the cap violation as a 400.
+    let stop_order = ctx
+        .db
+        .add_ride_request_stop(
+            &ride_id,
+            transform_ride_request_location_data(body.stop.clone()),
+            MAX_RIDE_STOPS,
+            new_fare_dec,
+        )
+        .await
+        .map_err(|err| AppError::InternalError(err.to_string()))??;
+
+    // ride_fare.ride_id FKs the ride row, which only exists once the trip
+    // started. Pre-start adds skip the snapshot — the repriced
+    // ride_requests.fare flows into create_ride's "estimated" one.
+    if ride_request.request_status == RideRequestStatus::Inprogress {
+        let (components, total) =
+            match ctx.db.get_current_fare(&ride_id.0).await {
+                Ok(Some(latest)) => {
+                    let mut components = latest.components.clone();
+                    if let Some(obj) = components.as_object_mut() {
+                        // FOLLOW-UP: when MAX_RIDE_STOPS > 1, accumulate
+                        // successive detours instead of overwriting.
+                        obj.insert(
+                            "stop_detour".to_string(),
+                            serde_json::json!(fare_delta),
+                        );
+                    }
+                    (
+                        components,
+                        latest.total + rust_decimal::Decimal::from(fare_delta),
+                    )
+                }
+                _ => (
+                    serde_json::json!({
+                        "estimated_fare": old_fare_dec,
+                        "stop_detour": fare_delta,
+                    }),
+                    new_fare_dec,
+                ),
+            };
+        // Best-effort: the authoritative fare is already committed on the
+        // ride rows; a missing history snapshot must not fail the add.
+        if let Err(err) = ctx
+            .db
+            .insert_ride_fare(
+                &ride_id.0,
+                components,
+                total,
+                "updated",
+                Some("stop_added".to_string()),
+            )
+            .await
+        {
+            tracing::error!(
+                tag = "add_ride_stop",
+                ride_id = %ride_id.0,
+                error = %err,
+                "Failed to record stop_added fare snapshot"
+            );
+        }
+    }
+
+    // Swap the cached trip polyline so route-deviation checks and the
+    // driver app's `p1` refetch follow the detour instead of flagging it.
+    if let Some(mut info) = ride_info {
+        if let Some(RideData::Taxi { polyline, .. }) = info.ride_data.as_mut() {
+            *polyline = Some(new_line.clone());
+        }
+        if let Err(err) =
+            set_ride_info(&ctx.redis, &driver_id, &info, &ctx.config.exp_ttl)
+                .await
+        {
+            tracing::error!(
+                tag = "add_ride_stop",
+                ride_id = %ride_id.0,
+                error = %err,
+                "Failed to refresh cached ride polyline after stop add"
+            );
+        }
+    }
+
+    let added_distance_km =
+        (meters_to_km(new_dx_m) - meters_to_km(old_dx_m)).max(0.0);
+    let added_duration_seconds = (new_dr_s as i64 - old_dr_s as i64).max(0);
+
+    let stop_added_event = StopAddedEvent {
+        event_id: ulid_string(),
+        timestamp: Utc::now().timestamp_millis(),
+        event_type: "StopAddedEvent".to_string(),
+        ride_id: ride_id.0.clone(),
+        driver_id: ride_request.driver_id.clone(),
+        rider_id: ride_request.customer_id.clone(),
+        priority: 1,
+        ack_required: true,
+        event_payload: StopAddedEventPayload {
+            stop_added: StopAddedPayload {
+                stop: GeoLocation {
+                    latitude: body.stop.geo_point.lat.0,
+                    longitude: body.stop.geo_point.lon.0,
+                    address: body
+                        .stop
+                        .street
+                        .clone()
+                        .unwrap_or_else(|| "null".to_string()),
+                    place_id: body
+                        .stop
+                        .place_id
+                        .clone()
+                        .unwrap_or_else(|| "null".to_string()),
+                },
+                old_fare,
+                new_fare,
+                new_route: new_line
+                    .iter()
+                    .map(|&(lon, lat)| RoutePoint {
+                        longitude: lon,
+                        latitude: lat,
+                    })
+                    .collect(),
+                added_distance_km,
+                added_duration_seconds,
+            },
+        },
+    };
+    redis_store::events::EventsManger::new(RIDE_EVENTS_STREAM)
+        .publish_event(Some(&stop_added_event), &ctx.redis)
+        .await
+        .map_err(|err| {
+            AppError::InternalError(format!(
+                "Failed to publish stop added event: {:?}",
+                err
+            ))
+        })?;
+
+    info!(
+        tag = "Stop Added",
+        "Stop {} added to ride {} — fare {} → {} (delta {})",
+        stop_order,
+        ride_id.0,
+        old_fare,
+        new_fare,
+        fare_delta
+    );
+
+    Ok(Json(AddRideStopResponse {
+        old_fare,
+        new_fare,
+        fare_delta,
+        line_str: new_line,
+        added_distance_km,
+        added_duration_seconds,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CancellRideBody {
     pub ride_path_id: String,
     pub reason: String,
-    pub note: String,
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CancelRideParams {
     pub account_type: AccountType,
 }
+
+const MAX_CANCEL_REASON_LEN: usize = 255;
+const MAX_CANCEL_NOTE_LEN: usize = 1000;
+
 pub async fn cancel_ride(
     Extension(ctx): Extension<Arc<APIContext>>,
     Extension(id): Extension<String>,
@@ -690,114 +1128,152 @@ pub async fn cancel_ride(
     Query(by): Query<CancelRideParams>,
     Json(body): Json<CancellRideBody>,
 ) -> Result<StatusCode, AppError> {
-    let ride_request = ctx
+    let reason = body.reason.trim().to_owned();
+    // A blank note is treated as no note, so the row stores NULL.
+    let note = body
+        .note
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map(str::to_owned);
+    if reason.is_empty() {
+        return Err(AppError::ValidationError(
+            "Cancellation reason is required".to_string(),
+        ));
+    }
+    if reason.len() > MAX_CANCEL_REASON_LEN
+        || note.as_deref().is_some_and(|n| n.len() > MAX_CANCEL_NOTE_LEN)
+    {
+        return Err(AppError::ValidationError(
+            "Cancellation reason or note is too long".to_string(),
+        ));
+    }
+
+    let Some(ride_request) = ctx
         .db
         .get_ride_request_by_id(&ride_id)
         .await
-        .map_err(|err| AppError::InternalError(err.to_string()))?;
+        .map_err(|err| AppError::InternalError(err.to_string()))?
+    else {
+        return Err(AppError::NotFound("Ride request not found".to_string()));
+    };
 
-    //Create ride cancel event
-    let mut ride_cancel_event = RideCanceledEvent {
+    // Only a participant of this ride (or an admin) may cancel it, and the
+    // claimed account type must belong to the authenticated caller — a
+    // driver can't cancel as the rider, nor either of them someone else's
+    // ride.
+    let is_participant = match by.account_type {
+        AccountType::Customer => ride_request.customer_id == id,
+        AccountType::Driver => ride_request.driver_id == id,
+        AccountType::Admin => true,
+    };
+    if !is_participant {
+        return Err(AppError::Unauthorized(
+            "Not a participant of this ride".to_string(),
+        ));
+    }
+
+    // Idempotent: the rider app retries failed cancels (react-query
+    // `retry: 3`), so a repeat of an already-applied cancel must succeed
+    // quietly instead of surfacing an error for a ride that IS cancelled.
+    match ride_request.request_status {
+        RideRequestStatus::Canceled => return Ok(StatusCode::OK),
+        RideRequestStatus::Completed => {
+            return Err(AppError::Gone("Ride already completed".to_string()));
+        }
+        _ => {}
+    }
+
+    // Atomic flip to Canceled with reason/note persisted on the row; an
+    // already closed request skips all side effects below.
+    let cancelled = ctx
+        .db
+        .cancel_ride_request(
+            &ride_id,
+            &reason,
+            note.as_deref(),
+            &by.account_type.to_string(),
+        )
+        .await
+        .map_err(|err| AppError::InternalError(err.to_string()))?;
+    if !cancelled {
+        return Err(AppError::Gone(
+            "Ride already canceled or completed".to_string(),
+        ));
+    }
+
+    // From here the cancellation is durable — the remaining steps are
+    // best-effort and must not fail the request.
+    if by.account_type == AccountType::Driver
+        && let Err(err) = ctx
+            .db
+            .update_driver_stats_rides_cancelled(
+                ride_request.driver_id.clone(),
+                &1,
+            )
+            .await
+    {
+        tracing::error!(
+            tag = "cancel_ride",
+            ride_id = %ride_id.0,
+            error = ?err,
+            "Failed to update driver cancel stats"
+        );
+    }
+
+    if let Err(err) = ride_clean_up(
+        &ctx.redis,
+        &DriverId(ride_request.driver_id.clone()),
+        &ride_id,
+        &body.ride_path_id,
+    )
+    .await
+    {
+        tracing::error!(
+            tag = "cancel_ride",
+            ride_id = %ride_id.0,
+            error = ?err,
+            "Failed to clean up ride cache"
+        );
+    }
+
+    let ride_cancel_event = RideCanceledEvent {
         event_id: ulid_string(),
         correlation_id: Some(ulid_string()),
         timestamp: Utc::now().timestamp_millis(),
         event_type: "RideCancelEvent".to_string(),
         ride_id: ride_id.0.to_string(),
+        driver_id: ride_request.driver_id,
+        rider_id: ride_request.customer_id,
         priority: 1,
         ack_required: false,
         event_payload: EventPayload {
             ride_cancel: RideCancelPayload {
-                reason: body.reason,
+                reason,
                 canceled_by: match by.account_type {
-                    AccountType::Customer => 1,
                     AccountType::Driver => 0,
+                    AccountType::Customer => 1,
                     AccountType::Admin => 2,
                 },
                 refund_amount: 0.00,
                 cancellation_fee: "0".to_string(),
-                note: body.note,
+                note: note.unwrap_or_default(),
             },
         },
-        ..Default::default()
     };
-    let events_manager =
-        redis_store::events::EventsManger::new(RIDE_EVENTS_STREAM);
-
-    if let Some(ride_request) = ride_request {
-        if ride_request.request_status == RideRequestStatus::Canceled
-            || ride_request.request_status == RideRequestStatus::Completed
-        {
-            return Err(AppError::InternalError(
-                "Ride already canceled or completed".to_string(),
-            ));
-        }
-        // If account_type is rider don't cancel just clean up so that
-        // driver can continue to get location updates
-        // delete ride request from db
-        // and fire an event to notify driver that ride has been cancelled
-        if by.account_type == AccountType::Customer {
-            let mut event = ride_cancel_event;
-            event.driver_id = ride_request.driver_id.clone();
-            event.rider_id = ride_request.customer_id.clone();
-            ctx.db
-                .delete_ride_request_by_id(&ride_id)
-                .await
-                .map_err(|err| AppError::InternalError(err.to_string()))?;
-            ride_clean_up(
-                &ctx.redis,
-                &DriverId(ride_request.driver_id),
-                &ride_id,
-                &body.ride_path_id,
-            )
-            .await?;
-            events_manager
-                .publish_event(Some(&event), &ctx.redis)
-                .await
-                .map_err(|err| {
-                    AppError::InternalError(format!(
-                        "Failed to publish ride canceled event: {:?}",
-                        err
-                    ))
-                })?;
-            return Ok(StatusCode::OK);
-        }
-        ctx.db
-            .update_ride_request_status(
-                ride_id.to_owned(),
-                RideRequestStatus::Canceled,
-            )
-            .await
-            .map_err(|err| AppError::InternalError(err.to_string()))?;
-
-        ctx.db
-            .update_driver_stats_rides_cancelled(id.to_owned(), &1)
-            .await
-            .map_err(|err| AppError::InternalError(err.to_string()))?;
-
-        ride_clean_up(
-            &ctx.redis,
-            &DriverId(id.to_string()),
-            &ride_id,
-            &body.ride_path_id,
-        )
-        .await?;
-        // publish ride canceled event
-        ride_cancel_event.driver_id = id;
-        ride_cancel_event.rider_id = ride_request.customer_id;
-        events_manager
-            .publish_event(Some(&ride_cancel_event), &ctx.redis)
-            .await
-            .map_err(|err| {
-                AppError::InternalError(format!(
-                    "Failed to publish ride canceled event: {:?}",
-                    err
-                ))
-            })?;
-
-        Ok(StatusCode::OK)
-    } else {
-        Err(AppError::NotFound("Ride request not found".to_string()))
+    if let Err(err) = redis_store::events::EventsManger::new(RIDE_EVENTS_STREAM)
+        .publish_event(Some(&ride_cancel_event), &ctx.redis)
+        .await
+    {
+        tracing::error!(
+            tag = "cancel_ride",
+            ride_id = %ride_id.0,
+            error = ?err,
+            "Failed to publish ride canceled event"
+        );
     }
+
+    Ok(StatusCode::OK)
 }
 
 #[derive(Debug, Serialize)]
@@ -1096,6 +1572,9 @@ pub struct GetAcceptedRideByDriverResp {
     pub otp: Option<String>,
     pub from: Option<location::Model>,
     pub to: Option<location::Model>,
+    /// Intermediate stops in visit order; empty for direct rides.
+    #[serde(default)]
+    pub stops: Vec<location::Model>,
     // From profile
     pub first_name: Option<String>,
     pub last_name: Option<String>,
@@ -1152,10 +1631,10 @@ pub async fn get_accepted_ride_by_driver(
                 )
             })?;
 
-        let (ride_model, from, to, driver_bundle) =
+        let (ride_model, from, to, stops, driver_bundle) =
             match (Some(ride_data), driver_info) {
-                (Some((ride_model, from, to)), Some(driver_bundle)) => {
-                    (ride_model, from, to, driver_bundle)
+                (Some((ride_model, from, to, stops)), Some(driver_bundle)) => {
+                    (ride_model, from, to, stops, driver_bundle)
                 }
                 _ => {
                     return Err(AppError::NotFound(
@@ -1197,6 +1676,7 @@ pub async fn get_accepted_ride_by_driver(
             otp: ride_model.otp,
             from,
             to,
+            stops,
             first_name: driver_bundle.first_name,
             last_name: driver_bundle.last_name,
             face_image_id: driver_bundle.face_image_id,
@@ -1999,6 +2479,69 @@ fn filter_locations_based_on_accuracy(
             is_within_accuracy && is_far_enough
         })
         .collect()
+}
+
+#[cfg(test)]
+mod stops_contract_tests {
+    use super::*;
+
+    /// Minimal location as the rider app sends it.
+    fn loc() -> RequestRideData {
+        serde_json::from_value(serde_json::json!({
+            "geo_point": { "lat": -1.2921, "lon": 36.8219 }
+        }))
+        .expect("minimal RequestRideData")
+    }
+
+    #[test]
+    fn validate_stops_allows_absent_empty_and_single() {
+        assert!(validate_stops(None).unwrap().is_empty());
+        assert!(validate_stops(Some(vec![])).unwrap().is_empty());
+        assert_eq!(validate_stops(Some(vec![loc()])).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn validate_stops_rejects_more_than_cap() {
+        let err = validate_stops(Some(vec![loc(), loc()]));
+        assert!(matches!(err, Err(AppError::ValidationError(_))));
+    }
+
+    /// Bodies from app versions that predate the stop feature must keep
+    /// deserializing unchanged (stops is optional on both endpoints).
+    #[test]
+    fn legacy_bodies_without_stops_still_deserialize() {
+        let ride_req: RideReq = serde_json::from_value(serde_json::json!({
+            "from": { "geo_point": { "lat": -1.29, "lon": 36.82 } },
+            "to": { "geo_point": { "lat": -1.30, "lon": 36.83 } }
+        }))
+        .expect("legacy RideReq");
+        assert!(ride_req.stops.is_none());
+
+        let send_req: SendRideRequestData =
+            serde_json::from_value(serde_json::json!({
+                "from": { "geo_point": { "lat": -1.29, "lon": 36.82 } },
+                "to": { "geo_point": { "lat": -1.30, "lon": 36.83 } },
+                "fare": 250,
+                "dx": 4.2,
+                "duration": 780,
+                "radius": 2000.0
+            }))
+            .expect("legacy SendRideRequestData");
+        assert!(send_req.stops.is_none());
+    }
+
+    #[test]
+    fn stop_fare_delta_prices_only_the_detour() {
+        // 450 → 523 remaining-fare estimates: 73 extra, rounded to 70.
+        assert_eq!(stop_fare_delta(450.0, 523.0), 70);
+    }
+
+    /// A reroute that comes out shorter must not discount the agreed fare.
+    #[test]
+    fn stop_fare_delta_never_negative() {
+        assert_eq!(stop_fare_delta(450.0, 430.0), 0);
+        assert_eq!(stop_fare_delta(450.0, 450.0), 0);
+    }
 }
 
 #[cfg(test)]

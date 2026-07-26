@@ -1,0 +1,39 @@
+# Gateway (BG) configuration — rendered by bootstrap.sh into
+# gateway/config/swf.properties. Verbatim from beckn-onix main-pre-plugins
+# install/gateway_data/config/swf.properties-sample, with the
+# {{PLACEHOLDER}} values substituted and the network identity localized.
+swf.load.complete.config.tables.if.count.less.than=500
+swf.user.password.encrypted=false
+swf.plugins.background.core.workers.numThreads=1
+swf.application.authentication.required=false
+
+swf.encryption.support=false
+swf.key.store.directory=./.keystore
+swf.key.store.password=venky12
+swf.key.entry.succinct.password=succinct12
+
+
+swf.host={{GATEWAY_HOST}}
+swf.external.port={{GATEWAY_PORT}}
+swf.external.scheme={{GATEWAY_SCHEME}}
+
+swf.jdbc.driver=org.h2.Driver
+swf.jdbc.url=jdbc:h2:./database/standalone;AUTO_SERVER=TRUE;
+swf.jdbc.userid=standalone
+swf.jdbc.password=standalone
+swf.jdbc.validationQuery=values(1)
+swf.jdbc.dbschema=PUBLIC
+swf.jdbc.dbschema.setonconnection=true
+swf.jdbc.set.dbschema.command=set schema public
+
+## Beckn Gateway configurations.
+
+beckn.auth.enabled=true
+
+in.succinct.beckn.gateway.subscriber_id={{GATEWAY_SUBSCRIBER_ID}}
+in.succinct.beckn.gateway.public_key_id={{GATEWAY_SUBSCRIBER_ID}}.k1
+
+
+in.succinct.onet.country.iso.3={{COUNTRY_ISO3}}
+in.succinct.onet.country.iso.2={{COUNTRY_ISO2}}
+in.succinct.onet.name={{NETWORK_NAME}}
