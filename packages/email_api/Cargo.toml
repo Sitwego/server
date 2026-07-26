@@ -13,6 +13,11 @@ serde_json = { workspace = true }
 thiserror  = { workspace = true }
 tokio      = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 tracing    = { workspace = true }
+# Runtime engine for admin-authored (Unlayer) templates: their `{{ tag }}` merge
+# tags are jinja syntax, so the exported HTML renders directly.
+minijinja  = "2"
+# Compile-time, type-checked templates for code-owned system emails (OTP, etc.).
+askama     = "0.12"
 
 [dev-dependencies]
 tokio    = { workspace = true }

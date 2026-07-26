@@ -1,0 +1,59 @@
+[package]
+name = "beckn-bpp-adapter"
+version = "0.1.0"
+edition = "2024"
+default-run = "beckn-bpp-adapter"
+
+# The Beckn BPP adapter. A protocol-translation layer ONLY: it makes Sitwego
+# discoverable and bookable over an open Beckn mobility network. It NEVER
+# modifies the dispatch core (`api` crate); in later steps it calls into it.
+
+[[bin]]
+name = "beckn-bpp-adapter"
+path = "src/main.rs"
+
+[lib]
+name = "beckn_bpp_adapter"
+path = "src/lib.rs"
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+thiserror.workspace = true
+anyhow.workspace = true
+dotenv.workspace = true
+envy.workspace = true
+async-trait.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# Native Beckn signing/verification (Step 3): Ed25519 over a BLAKE2b-512 digest
+# of the RAW request bytes, per the Beckn HTTP-signature profile.
+ed25519-dalek = "2"
+blake2 = "0.10"
+base64.workspace = true
+dashmap.workspace = true
+# Fresh message_ids for UNSOLICITED callbacks (on_status RIDE_ASSIGNED etc.) —
+# solicited callbacks echo the inbound message_id instead.
+uuid.workspace = true
+# Subscriber key minting (`keygen` bin, Step 8): Ed25519 signing seed from OS
+# randomness; X25519 encryption pair for the registry record.
+rand.workspace = true
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+# Shared data layer (sea-orm wrapper) + helpers, reused from the main app so the
+# adapter talks to the same Postgres without duplicating connection logic.
+db_store.workspace = true
+sea-orm.workspace = true
+utils.workspace = true
+# The Sitwego app itself (lib crate) + redis, for READ-ONLY discovery calls:
+# OSRM routing, nearby-driver lookup, fare estimates (Step 4). The adapter
+# never modifies dispatch state (Inviolable Rule #3).
+api = { path = "../api" }
+redis_store.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+tower = { workspace = true }

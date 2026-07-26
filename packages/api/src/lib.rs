@@ -6,6 +6,7 @@ pub mod cache;
 pub mod config;
 pub mod db;
 pub mod dispatch;
+pub mod email;
 pub mod helper;
 pub mod jobs;
 pub mod middleware;
@@ -43,6 +44,7 @@ pub struct APIContext {
     pub stats_tx: Sender<ProcessStataData>,
     pub notif: Arc<GorushClient>,
     pub verify: Arc<TwilioVerifyClient>,
+    pub email: Arc<email::EmailService>,
 
     pub driver_pool_manager: Arc<dispatch::dispatch::DriverPoolManager>,
     pub dispatch_api_manager: Arc<api::ride_request::DispatchApiManager>,
@@ -113,6 +115,11 @@ impl APIContext {
             &config.twilio_auth_token,
             &config.twilio_verify_service_sid,
         ));
+        let email = Arc::new(email::EmailService::new(
+            &config.resend_api_key,
+            config.email_from.clone(),
+            config.email_enabled(),
+        ));
 
         let driver_pool_manager = Arc::new(
             dispatch::dispatch::DriverPoolManager::new(
@@ -142,6 +149,7 @@ impl APIContext {
             redis,
             notif,
             verify,
+            email,
         });
         dispatcher_queue
             .start_workers(

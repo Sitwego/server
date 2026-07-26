@@ -5,6 +5,7 @@ pub mod docs;
 pub mod driver_earnings;
 pub mod driver_stats;
 pub mod drivers;
+pub mod email_templates;
 pub mod get_fair_estimates;
 pub mod ipn;
 pub mod preferences;

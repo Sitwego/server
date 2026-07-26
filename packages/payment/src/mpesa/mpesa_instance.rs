@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use lazy_static::lazy_static;
 use moka::future::Cache;
+use openssl::{rsa::Padding, x509::X509};
 use redis_store::r_types::AppError;
 use secrecy::{ExposeSecret, SecretBox};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -12,6 +13,7 @@ use utils::http_reqwest::{Method, ReqwClient};
 use crate::{
     MpesaResult,
     mpesa::stk_push::{StkPush, StkPushBuilder},
+    mpesa::transaction_status::{TransactionStatus, TransactionStatusBuilder},
 };
 
 pub struct Request<Body: Serialize + Send> {
@@ -110,6 +112,63 @@ impl MpesaInstance {
 
     pub fn stk_push(&self) -> StkPushBuilder<'_> {
         StkPush::new(self)
+    }
+
+    pub fn transaction_status(&self) -> TransactionStatusBuilder<'_> {
+        TransactionStatus::new(self)
+    }
+
+    /// Builds the `SecurityCredential` required by the APIs that authenticate an
+    /// initiator (Transaction Status, Reversal, B2C, ...): the initiator
+    /// password RSA-encrypted (PKCS#1 v1.5) with M-Pesa's public certificate,
+    /// then base64-encoded.
+    ///
+    /// The initiator password is taken from [`set_initiator_password`] if set,
+    /// otherwise from the `MPESA_INITIATOR_PASSWORD` env var. The certificate is
+    /// taken from the `certificate` field if non-empty, otherwise read from the
+    /// file at `MPESA_CERT_PATH`.
+    ///
+    /// [`set_initiator_password`]: MpesaInstance::set_initiator_password
+    pub async fn security_credential(&self) -> MpesaResult<String> {
+        let password = match &*self.initiator_password.lock().await {
+            Some(p) => p.expose_secret().to_owned(),
+            None => {
+                std::env::var("MPESA_INITIATOR_PASSWORD").map_err(|_| {
+                    AppError::InternalError(
+                        "MPESA_INITIATOR_PASSWORD must be set".to_string(),
+                    )
+                })?
+            }
+        };
+
+        let cert_bytes = if !self.certificate.is_empty() {
+            self.certificate.clone().into_bytes()
+        } else {
+            let path = std::env::var("MPESA_CERT_PATH").map_err(|_| {
+                AppError::InternalError(
+                    "MPESA_CERT_PATH must be set".to_string(),
+                )
+            })?;
+            std::fs::read(path)
+                .map_err(|err| AppError::InternalError(err.to_string()))?
+        };
+
+        // Safaricom ships the public cert as PEM, but tolerate DER `.cer` too.
+        let cert = X509::from_pem(&cert_bytes)
+            .or_else(|_| X509::from_der(&cert_bytes))
+            .map_err(|err| AppError::InternalError(err.to_string()))?;
+        let rsa = cert
+            .public_key()
+            .and_then(|key| key.rsa())
+            .map_err(|err| AppError::InternalError(err.to_string()))?;
+
+        let mut buf = vec![0u8; rsa.size() as usize];
+        let len = rsa
+            .public_encrypt(password.as_bytes(), &mut buf, Padding::PKCS1)
+            .map_err(|err| AppError::InternalError(err.to_string()))?;
+        buf.truncate(len);
+
+        Ok(openssl::base64::encode_block(&buf))
     }
 }
 

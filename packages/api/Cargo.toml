@@ -10,6 +10,7 @@ name = "api"
 [dependencies]
 async-trait.workspace = true
 notif_api.workspace = true
+email_api.workspace = true
 axum.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
@@ -73,6 +74,11 @@ futures-util = "0.3.31"
 
 [dev-dependencies]
 tracing-test = "0.2.5"
+# Test-only: enables sea_orm::MockDatabase for exercising query-backed code
+# (e.g. EmailService::send_template_by_slug) without a live Postgres. The `mock`
+# feature is unified into sea-orm only for api test builds, not the binary.
+sea-orm = { workspace = true, features = ["mock"] }
+wiremock = "0.6"
 
 [features]
 default = ["reqwest", "reqwest-multipart", "reqwest-middleware", "reqwest-json"]
