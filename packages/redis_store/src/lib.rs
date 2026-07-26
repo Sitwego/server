@@ -307,7 +307,8 @@ mod tests {
         NextDriverOfferEvent, NextDriverOfferEventPayload, RIDE_EVENTS_GROUP,
         RIDE_EVENTS_STREAM, Rating, RideCancelPayload, RideCanceledEvent,
         RideEndEvent, RideEndEventPayload, RideEndPayload, RideStartEvent,
-        RideStartEventPayload, RideStartPayload,
+        RideStartEventPayload, RideStartPayload, RoutePoint, StopAddedEvent,
+        StopAddedEventPayload, StopAddedPayload,
     };
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -586,6 +587,7 @@ mod tests {
                 ride_start: RideStartPayload {
                     start_location: geo_location(-1.2921, 36.8219),
                     destination: geo_location(-1.3000, 36.8300),
+                    stops: vec![geo_location(-1.2950, 36.8250)],
                     estimated_fare: 250.0,
                     vehicle_type: "boda".to_string(),
                     vehicle_number: "KBZ 001A".to_string(),
@@ -629,6 +631,7 @@ mod tests {
                 ride_start: RideStartPayload {
                     start_location: geo_location(0.0, 0.0),
                     destination: geo_location(0.0, 0.0),
+                    stops: Vec::new(),
                     estimated_fare: 0.0,
                     vehicle_type: String::new(),
                     vehicle_number: String::new(),
@@ -643,12 +646,31 @@ mod tests {
         assert!(decoded.event_payload.ride_start.driver_info.is_none());
     }
 
+    /// Events published by API pods that predate the `stops` field must keep
+    /// deserializing (rolling-deploy compatibility) — `stops` defaults to [].
+    #[test]
+    fn test_ride_start_payload_without_stops_field_deserializes() {
+        let json = r#"{"RideStart":{
+            "start_location":{"latitude":0.0,"longitude":0.0,"address":"null","place_id":"null"},
+            "destination":{"latitude":0.0,"longitude":0.0,"address":"null","place_id":"null"},
+            "estimated_fare":0.0,
+            "vehicle_type":"",
+            "vehicle_number":"",
+            "driver_info":null,
+            "estimated_duration":0
+        }}"#;
+        let decoded: RideStartEventPayload =
+            serde_json::from_str(json).expect("legacy payload deserialize");
+        assert!(decoded.ride_start.stops.is_empty());
+    }
+
     #[test]
     fn test_ride_start_payload_serde_rename() {
         let payload = RideStartEventPayload {
             ride_start: RideStartPayload {
                 start_location: geo_location(0.0, 0.0),
                 destination: geo_location(0.0, 0.0),
+                stops: Vec::new(),
                 estimated_fare: 0.0,
                 vehicle_type: String::new(),
                 vehicle_number: String::new(),
@@ -661,6 +683,54 @@ mod tests {
             json.contains("\"RideStart\""),
             "expected 'RideStart' rename in: {json}"
         );
+    }
+
+    // ── StopAddedEvent serde ─────────────────────────────────────────────────────
+
+    /// The payload key must be "StopAdded" — the notification service
+    /// deserializes it into the prost oneof variant of the same name.
+    #[test]
+    fn test_stop_added_event_round_trip_and_rename() {
+        let event = StopAddedEvent {
+            event_id: "evt-006".to_string(),
+            timestamp: 1_700_000_004,
+            event_type: "StopAddedEvent".to_string(),
+            ride_id: "ride-001".to_string(),
+            driver_id: "driver-001".to_string(),
+            rider_id: "rider-001".to_string(),
+            priority: 1,
+            ack_required: true,
+            event_payload: StopAddedEventPayload {
+                stop_added: StopAddedPayload {
+                    stop: geo_location(-1.2923, 36.7887),
+                    old_fare: 450.0,
+                    new_fare: 520.0,
+                    new_route: vec![
+                        RoutePoint {
+                            longitude: 36.7887,
+                            latitude: -1.2923,
+                        },
+                        RoutePoint {
+                            longitude: 36.8034,
+                            latitude: -1.2636,
+                        },
+                    ],
+                    added_distance_km: 2.4,
+                    added_duration_seconds: 420,
+                },
+            },
+        };
+        let json = serde_json::to_string(&event).expect("serialize");
+        assert!(
+            json.contains("\"StopAdded\""),
+            "expected 'StopAdded' rename in: {json}"
+        );
+        let decoded: StopAddedEvent =
+            serde_json::from_str(&json).expect("deserialize");
+        let payload = decoded.event_payload.stop_added;
+        assert!((payload.new_fare - 520.0).abs() < f64::EPSILON);
+        assert_eq!(payload.new_route.len(), 2);
+        assert_eq!(payload.added_duration_seconds, 420);
     }
 
     // ── RideEndEvent serde ───────────────────────────────────────────────────────
@@ -868,6 +938,84 @@ mod tests {
             "BUSYGROUP must be silently ignored: {:?}",
             result.err()
         );
+    }
+
+    #[tokio::test]
+    #[ignore = "requires Redis on localhost:6379"]
+    async fn test_recovery_pass_reclaims_unacked_messages() {
+        use crate::events::{EventHandlerFn, run_recovery_pass};
+        use fred::interfaces::KeysInterface;
+        use fred::prelude::StreamsInterface;
+        use fred::types::streams::XReadResponse;
+        use std::sync::{Arc, Mutex};
+
+        let pool = RedisConnectionPool::new(localhost_config()).await.unwrap();
+        // Unique stream per run so leftovers can't satisfy the assertions.
+        let stream = format!(
+            "swg:test:recovery_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let group = "recovery-test-workers";
+
+        // Group first (created at `$`), then the message, so it is delivered.
+        pool.ensure_consumer_group(&stream, group).await.unwrap();
+        pool.xadd_event(&stream, &"lost-message").await.unwrap();
+
+        // Deliver to a consumer that never acks — a crash between XREADGROUP
+        // and XACK leaves exactly this PEL state behind.
+        let client = pool.pool.next().clone();
+        let read: XReadResponse<String, String, String, String> = client
+            .xreadgroup_map(
+                group,
+                "crashed-consumer",
+                Some(10u64),
+                None,
+                false,
+                &stream,
+                ">",
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            read.get(&stream).map(Vec::len),
+            Some(1),
+            "message must be delivered (and left unacked)"
+        );
+
+        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+        let seen_in_handler = seen.clone();
+        let handler: EventHandlerFn = Box::new(move |_id, payload| {
+            let seen = seen_in_handler.clone();
+            Box::pin(async move {
+                seen.lock().unwrap().push(payload);
+                true
+            })
+        });
+
+        // idle_ms = 0: reclaim immediately regardless of age.
+        run_recovery_pass(&client, &stream, group, "recovery-0", 0, &handler)
+            .await
+            .unwrap();
+        {
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen.len(), 1, "recovery must replay the message");
+            assert!(seen[0].contains("lost-message"), "payload: {}", seen[0]);
+        }
+
+        // The replayed message was acked, so a second pass finds nothing.
+        run_recovery_pass(&client, &stream, group, "recovery-0", 0, &handler)
+            .await
+            .unwrap();
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            1,
+            "acked message must not be reclaimed again"
+        );
+
+        let _: Result<i64, _> = client.del(&stream).await;
     }
 
     #[tokio::test]
@@ -1081,6 +1229,7 @@ mod tests {
                 ride_start: RideStartPayload {
                     start_location: geo_location(-1.2921, 36.8219),
                     destination: geo_location(-1.3000, 36.8300),
+                    stops: Vec::new(),
                     estimated_fare: 300.0,
                     vehicle_type: "boda".to_string(),
                     vehicle_number: "KCA 001X".to_string(),

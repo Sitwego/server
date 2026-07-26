@@ -7,12 +7,13 @@ use std::pin::Pin;
 use crate::schemas::ride_request::RideRequestStatus;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, Condition, ConnectionTrait,
-    DbBackend, EntityTrait, FromQueryResult, QueryFilter, Statement, Value,
+    DbBackend, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter,
+    QueryOrder, Statement, Value,
 };
 use tokio::try_join;
 use tracing::info_span;
 // use time::OffsetDateTime;
-use crate::schemas::{location, ride_request};
+use crate::schemas::{location, ride_request, ride_request_stop};
 use crate::types::*;
 use crate::{schemas::ride, types::DriverId};
 // use tracing::{info, warn};
@@ -29,6 +30,8 @@ type RideData = Result<
         ride_request::Model,
         Option<location::Model>,
         Option<location::Model>,
+        // Intermediate stops in visit order (empty for direct rides).
+        Vec<location::Model>,
     )>,
     AppError,
 >;
@@ -52,23 +55,76 @@ pub trait RideQueries {
         &self,
         ride_id: &RideId,
     ) -> impl std::future::Future<Output = utils::Result<Vec<GeoPoint>>> + Send;
+    /// Inserts from/to plus any intermediate stop locations in one
+    /// transaction; returns their ids with stop ids in visit order.
     fn create_locations(
         &self,
         from: location::ActiveModel,
         to: location::ActiveModel,
-    ) -> impl std::future::Future<Output = utils::Result<(String, String)>> + Send;
+        stops: Vec<location::ActiveModel>,
+    ) -> impl std::future::Future<
+        Output = utils::Result<(String, String, Vec<String>)>,
+    > + Send;
     fn create_ride_request(
         &self,
         rq_model: ride_request::Model,
         from: String,
         to: String,
         end_otp: String,
+        stop_location_ids: Vec<String>,
     ) -> impl std::future::Future<Output = utils::Result<()>> + Send;
+    /// Intermediate stop locations of a ride request, ordered by
+    /// `stop_order`. Empty for direct rides.
+    fn get_ride_request_stops(
+        &self,
+        ride_request_id: &RideId,
+    ) -> impl std::future::Future<
+        Output = utils::Result<Vec<location::Model>, AppError>,
+    > + Send;
+    /// From/to location rows of a ride request, fetched by the ids on its
+    /// model (`find_also_related` can't disambiguate the two location FKs).
+    fn get_ride_request_endpoints(
+        &self,
+        from_location_id: &str,
+        to_location_id: &str,
+    ) -> impl std::future::Future<
+        Output = utils::Result<
+            (Option<location::Model>, Option<location::Model>),
+            AppError,
+        >,
+    > + Send;
+    /// Append one intermediate stop to an active ride request and reprice
+    /// it, atomically: cap check → location insert → join row at the next
+    /// `stop_order` → `ride_requests.fare`, plus `ride.fare` when the ride
+    /// row already exists (`end_ride` reports `final_fare` from there;
+    /// before ride start, `start_ride` copies the updated fare across).
+    /// The inner `Result` carries user-facing failures (cap exceeded) so
+    /// they surface as 400s, mirroring `get_current_ride_info`'s shape.
+    /// Returns the appended stop's `stop_order`.
+    fn add_ride_request_stop(
+        &self,
+        ride_request_id: &RideId,
+        stop: location::ActiveModel,
+        max_stops: usize,
+        new_fare: sea_orm::prelude::Decimal,
+    ) -> impl std::future::Future<Output = utils::Result<Result<i32, AppError>>> + Send;
     fn update_ride_request_status(
         &self,
         ride_id: RideId,
         new_status: RideRequestStatus,
     ) -> impl std::future::Future<Output = utils::Result<()>> + Send;
+    /// Atomically cancel an open ride request, persisting `reason`, the
+    /// optional `note` (`None` stores NULL) and `canceled_by`
+    /// ("driver" | "customer" | "admin") on the row. Returns `Ok(false)`
+    /// when the request was already `Canceled` or `Completed` (or doesn't
+    /// exist) so callers can skip cancellation side effects.
+    fn cancel_ride_request(
+        &self,
+        ride_id: &RideId,
+        reason: &str,
+        note: Option<&str>,
+        canceled_by: &str,
+    ) -> impl std::future::Future<Output = utils::Result<bool>> + Send;
     fn get_current_ride_info(
         &self,
         ride_id: RideId,
@@ -232,10 +288,12 @@ impl RideQueries for Database {
         &self,
         from_location: location::ActiveModel,
         to_location: location::ActiveModel,
-    ) -> utils::Result<(String, String)> {
+        stop_locations: Vec<location::ActiveModel>,
+    ) -> utils::Result<(String, String, Vec<String>)> {
         self.transaction(move |tx| {
             let from = from_location.clone();
             let to = to_location.clone();
+            let stops = stop_locations.clone();
             async move {
                 let from = async {
                     let id = location::Entity::insert(from)
@@ -254,7 +312,17 @@ impl RideQueries for Database {
 
                 let (from, to) = try_join!(from, to)?;
 
-                Ok((from, to))
+                // Sequential on purpose: ids must come back in visit order.
+                let mut stop_ids = Vec::with_capacity(stops.len());
+                for stop in stops {
+                    let id = location::Entity::insert(stop)
+                        .exec(&*tx)
+                        .await?
+                        .last_insert_id;
+                    stop_ids.push(id);
+                }
+
+                Ok((from, to, stop_ids))
             }
         })
         .await
@@ -266,6 +334,7 @@ impl RideQueries for Database {
         from_id: String,
         to_id: String,
         end_otp: String,
+        stop_location_ids: Vec<String>,
     ) -> utils::Result<()> {
         self.transaction(move |tx| {
             let id = updated_rq_model.id.clone();
@@ -276,9 +345,10 @@ impl RideQueries for Database {
             let to_location_id = to_id.clone();
             let end_otp = end_otp.clone();
             let start_otp = updated_rq_model.otp.clone();
+            let stop_location_ids = stop_location_ids.clone();
             Box::pin(async move {
                 let rq_model = ride_request::ActiveModel {
-                    id: ActiveValue::Set(id),
+                    id: ActiveValue::Set(id.clone()),
                     driver_id: ActiveValue::Set(driver_id),
                     customer_id: ActiveValue::Set(customer_id),
                     fare: ActiveValue::Set(updated_rq_model.fare),
@@ -308,6 +378,9 @@ impl RideQueries for Database {
                     end_otp: ActiveValue::Set(Some(end_otp.to_owned())),
                     otp_verified: ActiveValue::Set(false),
                     end_otp_verified: ActiveValue::Set(false),
+                    cancel_reason: ActiveValue::NotSet,
+                    cancel_note: ActiveValue::NotSet,
+                    canceled_by: ActiveValue::NotSet,
                 };
                 ride_request::Entity::insert(rq_model)
                     .on_conflict(
@@ -330,6 +403,34 @@ impl RideQueries for Database {
                     )
                     .exec(&*tx)
                     .await?;
+
+                // Upsert stop rows. Re-dispatch to another driver reuses the
+                // same request id with the same stop count, so conflicting
+                // (ride_request_id, stop_order) rows just re-point at the
+                // freshly inserted location rows.
+                for (i, location_id) in
+                    stop_location_ids.into_iter().enumerate()
+                {
+                    let stop_model = ride_request_stop::ActiveModel {
+                        ride_request_id: ActiveValue::Set(id.clone()),
+                        stop_order: ActiveValue::Set(i as i32),
+                        location_id: ActiveValue::Set(location_id),
+                        ..Default::default()
+                    };
+                    ride_request_stop::Entity::insert(stop_model)
+                        .on_conflict(
+                            OnConflict::columns([
+                                ride_request_stop::Column::RideRequestId,
+                                ride_request_stop::Column::StopOrder,
+                            ])
+                            .update_column(
+                                ride_request_stop::Column::LocationId,
+                            )
+                            .to_owned(),
+                        )
+                        .exec(&*tx)
+                        .await?;
+                }
                 Ok(())
             })
                 as Pin<Box<dyn Future<Output = utils::Result<()>> + Send>>
@@ -500,6 +601,80 @@ impl RideQueries for Database {
         .await
     }
 
+    async fn cancel_ride_request(
+        &self,
+        ride_id: &RideId,
+        reason: &str,
+        note: Option<&str>,
+        canceled_by: &str,
+    ) -> utils::Result<bool> {
+        let ride_id = ride_id.0.clone();
+        let reason = reason.to_owned();
+        let note = note.map(str::to_owned);
+        let canceled_by = canceled_by.to_owned();
+        self.transaction(move |tx| {
+            let ride_id = ride_id.clone();
+            let reason = reason.clone();
+            let note = note.clone();
+            let canceled_by = canceled_by.clone();
+            Box::pin(async move {
+                // The status guard makes the flip atomic: a request that a
+                // concurrent cancel or completion already closed is left
+                // untouched and reported via `Ok(false)`.
+                let sql_stmt = Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "UPDATE ride_requests SET request_status = 'Canceled'::ride_request_status, cancel_reason = $1, cancel_note = $2, canceled_by = $3, updated_at = $4 WHERE id = $5 AND request_status NOT IN ('Canceled'::ride_request_status, 'Completed'::ride_request_status)",
+                    vec![
+                        Value::String(Some(Box::new(reason))),
+                        Value::String(note.map(Box::new)),
+                        Value::String(Some(Box::new(canceled_by))),
+                        Value::ChronoDateTimeUtc(Some(Box::new(Utc::now()))),
+                        Value::String(Some(Box::new(ride_id.to_owned()))),
+                    ],
+                );
+                let res: sea_orm::ExecResult = tx
+                    .execute(sql_stmt)
+                    .await
+                    .map_err(| err | {
+                        tracing::error!("Error canceling ride_request: {:?}", err);
+                        err
+                    })?;
+                if res.rows_affected() == 0 {
+                    return Ok(false);
+                }
+
+                // Mirror the status onto the ride row when one exists, like
+                // `update_ride_request_status`.
+                let ride = ride::Entity::find_by_id(ride_id.clone())
+                    .one(&*tx)
+                    .await
+                    .context("Ride does not exist")?;
+                if ride.is_none() {
+                    return Ok(true);
+                }
+                let sql_stmt = Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "UPDATE ride SET status = 'Canceled'::ride_request_status, updated_at = $1, trip_end_time = $2 WHERE id = $3",
+                    vec![
+                        Value::ChronoDateTimeUtc(Some(Box::new(Utc::now()))),
+                        Value::ChronoDateTimeUtc(Some(Box::new(Utc::now()))),
+                        Value::String(Some(Box::new(ride_id))),
+                    ],
+                );
+                let _: sea_orm::ExecResult = tx
+                    .execute(sql_stmt)
+                    .await
+                    .map_err(| err | {
+                        tracing::error!("Error updating ride table: {:?}", err);
+                        err
+                    })?;
+
+                Ok(true)
+            })
+        })
+        .await
+    }
+
     async fn get_current_ride_info(
         &self,
         ride_id: RideId,
@@ -529,13 +704,160 @@ impl RideQueries for Database {
                         .one(&*tx),
                     )?;
 
-                    let result = Some((ride, from_location, to_location));
+                    let stops = ride_request_stop::Entity::find()
+                        .filter(
+                            ride_request_stop::Column::RideRequestId
+                                .eq(ride.id.clone()),
+                        )
+                        .order_by_asc(ride_request_stop::Column::StopOrder)
+                        .find_also_related(location::Entity)
+                        .all(&*tx)
+                        .await?
+                        .into_iter()
+                        .filter_map(|(_, loc)| loc)
+                        .collect::<Vec<location::Model>>();
+
+                    let result =
+                        Some((ride, from_location, to_location, stops));
                     Ok::<_, AppError>(result)
                 } else {
                     Ok(None)
                 };
 
                 Ok(ride_data)
+            }
+        })
+        .await
+    }
+
+    async fn get_ride_request_stops(
+        &self,
+        ride_request_id: &RideId,
+    ) -> utils::Result<Vec<location::Model>, AppError> {
+        let stops = self
+            .transaction(move |tx| {
+                let ride_request_id = ride_request_id.0.clone();
+                async move {
+                    let stops = ride_request_stop::Entity::find()
+                        .filter(
+                            ride_request_stop::Column::RideRequestId
+                                .eq(ride_request_id),
+                        )
+                        .order_by_asc(ride_request_stop::Column::StopOrder)
+                        .find_also_related(location::Entity)
+                        .all(&*tx)
+                        .await
+                        .context("Failed to fetch ride request stops")?
+                        .into_iter()
+                        .filter_map(|(_, loc)| loc)
+                        .collect::<Vec<location::Model>>();
+                    Ok(stops)
+                }
+            })
+            .await
+            .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        Ok(stops)
+    }
+
+    async fn get_ride_request_endpoints(
+        &self,
+        from_location_id: &str,
+        to_location_id: &str,
+    ) -> utils::Result<
+        (Option<location::Model>, Option<location::Model>),
+        AppError,
+    > {
+        let from_location_id = from_location_id.to_string();
+        let to_location_id = to_location_id.to_string();
+        let endpoints = self
+            .transaction(move |tx| {
+                let from_location_id = from_location_id.clone();
+                let to_location_id = to_location_id.clone();
+                async move {
+                    let (from, to) = try_join!(
+                        location::Entity::find_by_id(from_location_id)
+                            .one(&*tx),
+                        location::Entity::find_by_id(to_location_id).one(&*tx),
+                    )
+                    .context("Failed to fetch ride request endpoints")?;
+                    Ok((from, to))
+                }
+            })
+            .await
+            .map_err(|err| AppError::DatabaseError(err.to_string()))?;
+        Ok(endpoints)
+    }
+
+    async fn add_ride_request_stop(
+        &self,
+        ride_request_id: &RideId,
+        stop: location::ActiveModel,
+        max_stops: usize,
+        new_fare: sea_orm::prelude::Decimal,
+    ) -> utils::Result<Result<i32, AppError>> {
+        let ride_request_id = ride_request_id.0.clone();
+        self.transaction(move |tx| {
+            let ride_request_id = ride_request_id.clone();
+            let stop = stop.clone();
+            async move {
+                // Count inside the transaction so two concurrent adds can't
+                // both pass the cap — the loser sees the winner's row.
+                let existing = ride_request_stop::Entity::find()
+                    .filter(
+                        ride_request_stop::Column::RideRequestId
+                            .eq(ride_request_id.clone()),
+                    )
+                    .count(&*tx)
+                    .await? as usize;
+                if existing >= max_stops {
+                    return Ok(Err(AppError::ValidationError(format!(
+                        "at most {} intermediate stop(s) supported, ride already has {}",
+                        max_stops, existing
+                    ))));
+                }
+
+                let location_id = location::Entity::insert(stop)
+                    .exec(&*tx)
+                    .await?
+                    .last_insert_id;
+
+                let stop_order = existing as i32;
+                ride_request_stop::ActiveModel {
+                    ride_request_id: ActiveValue::Set(ride_request_id.clone()),
+                    stop_order: ActiveValue::Set(stop_order),
+                    location_id: ActiveValue::Set(location_id),
+                    ..Default::default()
+                }
+                .insert(&*tx)
+                .await?;
+
+                let update_request_fare = Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "UPDATE ride_requests SET fare = $1, updated_at = $2 WHERE id = $3",
+                    vec![
+                        new_fare.into(),
+                        Value::ChronoDateTimeUtc(Some(Box::new(Utc::now()))),
+                        Value::String(Some(Box::new(ride_request_id.clone()))),
+                    ],
+                );
+                let _: sea_orm::ExecResult =
+                    tx.execute(update_request_fare).await?;
+
+                // No-op before ride start (no ride row yet) — start_ride
+                // copies ride_requests.fare into ride.fare at that point.
+                let update_ride_fare = Statement::from_sql_and_values(
+                    DbBackend::Postgres,
+                    "UPDATE ride SET fare = $1, updated_at = $2 WHERE id = $3",
+                    vec![
+                        new_fare.into(),
+                        Value::ChronoDateTimeUtc(Some(Box::new(Utc::now()))),
+                        Value::String(Some(Box::new(ride_request_id))),
+                    ],
+                );
+                let _: sea_orm::ExecResult =
+                    tx.execute(update_ride_fare).await?;
+
+                Ok(Ok(stop_order))
             }
         })
         .await

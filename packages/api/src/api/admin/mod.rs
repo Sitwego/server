@@ -7,6 +7,8 @@
 //! and the audit log live in the BFF, so handlers here are thin delegations to
 //! existing business logic — they never reimplement billing rules.
 
+pub mod email_templates;
+
 use std::sync::Arc;
 
 use axum::{
@@ -56,8 +58,9 @@ pub async fn admin_internal_auth(
 }
 
 /// Length-checked constant-time comparison so token validation doesn't leak
-/// length/prefix information through timing.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+/// length/prefix information through timing. Shared with the Beckn internal
+/// plane, which uses the same `X-Internal-Token` transport trust model.
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -112,6 +115,8 @@ pub fn admin_handlers(ctx: Arc<APIContext>) -> Router {
             "/admin/documents/{kind}/{doc_id}/image",
             get(document_image),
         )
+        // --- email template editor ---
+        .merge(email_templates::routes())
         .layer(middleware::from_fn_with_state(
             ctx.clone(),
             admin_internal_auth,
@@ -527,6 +532,10 @@ async fn activate_driver(
     // re-activation never double-rewards) and never fails the activation —
     // reward problems are logged and recoverable, a blocked go-live is not.
     if body.activate {
+        // Tell the driver their account is live. Off the request path and
+        // best-effort — a mail hiccup must never fail the activation.
+        spawn_activation_email(ctx.clone(), driver_id.clone());
+
         let reward_type =
             ReferralRewardType::from_config(&ctx.config.referral_reward_type);
         let reward_value = Decimal::try_from(ctx.config.referral_reward_value)
@@ -550,6 +559,79 @@ async fn activate_driver(
     }
 
     Ok(StatusCode::OK)
+}
+
+/// The admin-authored template sent when a driver is activated.
+const ACTIVATION_EMAIL_SLUG: &str = "activation-email";
+
+/// Send the driver their "account activated" email off the request path. Never
+/// blocks or fails the activation: it is a no-op when email is disabled, the
+/// driver has no recoverable contact, or no published `activation-email`
+/// template exists yet.
+fn spawn_activation_email(ctx: Arc<APIContext>, driver_id: String) {
+    if !ctx.config.email_enabled() {
+        return;
+    }
+
+    tokio::spawn(async move {
+        let detail = match ctx.db.get_driver_detail(&driver_id).await {
+            Ok(Some(d)) => d,
+            Ok(None) => return,
+            Err(e) => {
+                tracing::error!(
+                    "activation email: driver lookup failed for {driver_id}: {e:?}"
+                );
+                return;
+            }
+        };
+
+        // Decrypt contact only when the envelope material is present (same rule
+        // as `driver_profile`); accounts predating key storage simply skip.
+        let email = match (
+            detail.contact_data,
+            detail.nonce,
+            detail.encrypted_key,
+        ) {
+            (Some(cd), Some(nonce), Some(key)) if !key.is_empty() => {
+                match extract_contact_info(&cd, &nonce, &key).await {
+                    Ok((email, _phone)) => email,
+                    Err(e) => {
+                        tracing::warn!(
+                            "activation email: failed to decrypt contact for {driver_id}: {e:?}"
+                        );
+                        return;
+                    }
+                }
+            }
+            _ => return,
+        };
+        if email.trim().is_empty() {
+            return;
+        }
+
+        let context = serde_json::json!({ "first_name": detail.first_name });
+        match ctx
+            .email
+            .send_template_by_slug(
+                &ctx.db,
+                ACTIVATION_EMAIL_SLUG,
+                vec![email],
+                &context,
+            )
+            .await
+        {
+            Ok(Some(receipt)) => tracing::info!(
+                "sent activation email to driver {driver_id}, id={}",
+                receipt.id
+            ),
+            Ok(None) => tracing::debug!(
+                "no published '{ACTIVATION_EMAIL_SLUG}' template; skipping activation email"
+            ),
+            Err(e) => tracing::error!(
+                "failed to send activation email to {driver_id}: {e}"
+            ),
+        }
+    });
 }
 
 /// Push the "you earned a reward" notification to the referrer. Fired only on

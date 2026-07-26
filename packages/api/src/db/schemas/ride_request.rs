@@ -83,6 +83,13 @@ pub struct Model {
     pub end_otp: Option<String>,
     #[sea_orm(default_value = "false")]
     pub end_otp_verified: bool,
+    #[serde(default)]
+    pub cancel_reason: Option<String>,
+    #[serde(default)]
+    pub cancel_note: Option<String>,
+    /// Which side ended it: "driver" | "customer" | "admin".
+    #[serde(default)]
+    pub canceled_by: Option<String>,
 }
 
 // Relations
@@ -133,6 +140,9 @@ impl ActiveModelBehavior for ActiveModel {
             otp_verified: ActiveValue::NotSet,
             end_otp: ActiveValue::NotSet,
             end_otp_verified: ActiveValue::NotSet,
+            cancel_reason: ActiveValue::NotSet,
+            cancel_note: ActiveValue::NotSet,
+            canceled_by: ActiveValue::NotSet,
         }
     }
 }

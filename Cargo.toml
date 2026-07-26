@@ -3,6 +3,7 @@ resolver = "3"
 members = [
   "packages/api",
   "packages/aws",
+  "packages/beckn-bpp-adapter",
   "packages/db_store",
   "packages/email_api",
   "packages/kafka",

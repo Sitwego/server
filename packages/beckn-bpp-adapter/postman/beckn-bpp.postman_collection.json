@@ -1,0 +1,109 @@
+{
+  "info": {
+    "name": "Sitwego Beckn BPP — via mock-BAP harness",
+    "description": "Drive the full Beckn booking flow from Postman.\n\nPostman cannot Ed25519-sign request bodies or receive asynchronous Beckn callbacks, so every request here goes through the mock-BAP signing harness (`FLOW=serve ... cargo run -p beckn-bpp-adapter --bin mock_bap`). The harness signs the exact bytes with the BAP key, forwards to the real gateway/adapter, and collects the async `on_*` callbacks for polling — signatures stay ON end to end.\n\nHappy path (all requests need NO body edits):\n1. `search` → poll `callbacks (all)` until `on_search` arrives\n2. `select` → `on_select` (quote)\n3. `init` → `on_init` (order id, harvested into the session automatically)\n4. `confirm` → `on_confirm`, then keep polling: the unsolicited `on_status` RIDE_ASSIGNED arrives once a driver accepts (use scratchpad `driver_sim.py` for a simulated driver)\n5. `status` / `track` / `cancel` — empty bodies, order id comes from the session\n\n`GET session` shows what the harness has learned (transaction id, bpp, catalog item, order id). Any request accepts `{\"message\": …}` to override the default body.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "harness",
+      "value": "http://127.0.0.1:9095",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. search",
+      "request": {
+        "method": "POST",
+        "url": "{{harness}}/send/search",
+        "description": "Signed search via the gateway `/bg/search`. Opens a fresh transaction (resets the harness session). Default intent uses PICKUP_GPS/DROPOFF_GPS from the harness env; override with a raw JSON body like:\n\n{\"message\": {\"intent\": {\"fulfillment\": {\"stops\": [{\"type\": \"START\", \"location\": {\"gps\": \"-1.2864, 36.8172\"}}, {\"type\": \"END\", \"location\": {\"gps\": \"-1.3192, 36.9258\"}}]}}}}"
+      }
+    },
+    {
+      "name": "2. select",
+      "request": {
+        "method": "POST",
+        "url": "{{harness}}/send/select",
+        "description": "Signed select, direct to the BPP. Default body selects the first catalog item from the last on_search. Fails with a clear error if the catalog was empty (no driver online)."
+      }
+    },
+    {
+      "name": "3. init",
+      "request": {
+        "method": "POST",
+        "url": "{{harness}}/send/init",
+        "description": "Signed init. The on_init callback carries the durable order id; the harness harvests it into the session automatically."
+      }
+    },
+    {
+      "name": "4. confirm",
+      "request": {
+        "method": "POST",
+        "url": "{{harness}}/send/confirm",
+        "description": "Signed confirm — enters REAL dispatch on the api service. Default body uses the session order id and CUSTOMER_NAME/CUSTOMER_PHONE from the harness env. After on_confirm, keep polling callbacks: the unsolicited on_status RIDE_ASSIGNED arrives when a driver accepts (run scratchpad driver_sim.py to simulate one)."
+      }
+    },
+    {
+      "name": "5. status",
+      "request": {
+        "method": "POST",
+        "url": "{{harness}}/send/status",
+        "description": "Signed status for the session's order id. Reply arrives as an on_status callback."
+      }
+    },
+    {
+      "name": "6. track",
+      "request": {
+        "method": "POST",
+        "url": "{{harness}}/send/track",
+        "description": "Signed track. The on_track callback carries the tracking URL (never raw GPS)."
+      }
+    },
+    {
+      "name": "7. cancel",
+      "request": {
+        "method": "POST",
+        "url": "{{harness}}/send/cancel",
+        "description": "Signed cancel for the session's order id. Expect an on_cancel callback with cancelled_by=CONSUMER. Refused (error callback) once the ride is in progress — v1 policy."
+      }
+    },
+    {
+      "name": "callbacks (all)",
+      "request": {
+        "method": "GET",
+        "url": "{{harness}}/callbacks",
+        "description": "Every on_* callback received so far, oldest first. Poll this after each action — Beckn replies are asynchronous."
+      }
+    },
+    {
+      "name": "callbacks (on_search only)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{harness}}/callbacks?action=on_search",
+          "host": ["{{harness}}"],
+          "path": ["callbacks"],
+          "query": [{ "key": "action", "value": "on_search" }]
+        },
+        "description": "Filter by action: on_search / on_select / on_init / on_confirm / on_status / on_cancel / on_track."
+      }
+    },
+    {
+      "name": "session",
+      "request": {
+        "method": "GET",
+        "url": "{{harness}}/session",
+        "description": "What the harness has learned from callbacks: transaction_id, bpp_id/bpp_uri, provider/item from the catalog, order_id. This is what fills the empty-body defaults."
+      }
+    },
+    {
+      "name": "clear callbacks",
+      "request": {
+        "method": "DELETE",
+        "url": "{{harness}}/callbacks",
+        "description": "Empty the stored callback list (the session is untouched; a new search resets that)."
+      }
+    }
+  ]
+}

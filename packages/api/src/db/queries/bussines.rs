@@ -594,10 +594,15 @@ impl SubscriptionsPlans for Database {
                         }
                     }
 
-                    // Business rule: no ride, no charge — applies to every plan
-                    // type. A driver is only billed for days they actually drove.
+                    // A day is billable only if the driver took ≥2 rides that
+                    // day. Destructive: from here on rides_per_day holds only
+                    // billable days.
+                    rides_per_day.retain(|_, count| *count >= 2);
                     if rides_per_day.is_empty() {
-                        info!("Driver {}: no new rides since last billing, no charge", driver_id);
+                        info!(
+                            "Driver {}, plan {}: no billable days since last billing (0 or 1 ride per day), no charge",
+                            driver_id, plan_id
+                        );
                         continue;
                     }
 
@@ -607,7 +612,7 @@ impl SubscriptionsPlans for Database {
 
                     let charge = match plan.billing_type {
                         // Flat per active day: one day's price for each distinct
-                        // day the driver drove, regardless of rides taken that day.
+                        // billable day, regardless of rides taken that day.
                         BillingType::PerDay => {
                             cost * Decimal::from(rides_per_day.len() as i64)
                         }
@@ -630,7 +635,7 @@ impl SubscriptionsPlans for Database {
 
                     let total_due = existing_due + charge;
                     info!(
-                        "Driver {}, plan {}: {} rides over {} day(s), charge={}, total_due={}",
+                        "Driver {}, plan {}: {} rides over {} billable day(s), charge={}, total_due={}",
                         driver_id, plan.id, ride_count, rides_per_day.len(), charge, total_due
                     );
 

@@ -132,34 +132,58 @@ async fn main() -> Result<()> {
         .await
         .expect("failed to start job scheduler");
 
-    // Private admin plane (Option B). Opt-in: starts only when an internal
-    // token is configured. Bound to a private interface (loopback by default)
-    // so it is unreachable from the public internet — only the co-located admin
-    // BFF, which carries `X-Internal-Token`, can call it.
-    if !api_ctx.config.admin_internal_token.is_empty() {
-        let admin_ctx = api_ctx.clone();
-        let admin_bind = format!(
+    // Private internal plane (Option B). Opt-in per plane: the admin routes
+    // start only with ADMIN_INTERNAL_TOKEN set, the Beckn adapter routes only
+    // with BECKN_INTERNAL_TOKEN set (each plane checks its own token). Bound
+    // to a private interface (loopback by default) so it is unreachable from
+    // the public internet — only co-located callers carrying the right
+    // `X-Internal-Token` (admin BFF / beckn-bpp-adapter) can reach it.
+    let admin_enabled = !api_ctx.config.admin_internal_token.is_empty();
+    let beckn_enabled = !api_ctx.config.beckn_internal_token.is_empty();
+    if admin_enabled || beckn_enabled {
+        let plane_ctx = api_ctx.clone();
+        let plane_bind = format!(
             "{}:{}",
-            admin_ctx.config.effective_admin_bind_addr(),
-            admin_ctx.config.admin_port
+            plane_ctx.config.effective_admin_bind_addr(),
+            plane_ctx.config.admin_port
         );
-        let admin_app =
-            api::api::admin::admin_handlers(admin_ctx).into_make_service();
+        let mut plane_app = axum::Router::new();
+        if admin_enabled {
+            plane_app = plane_app
+                .merge(api::api::admin::admin_handlers(plane_ctx.clone()));
+        } else {
+            info!("Admin plane disabled (ADMIN_INTERNAL_TOKEN not set)");
+        }
+        if beckn_enabled {
+            plane_app = plane_app.merge(
+                api::api::beckn_internal::beckn_internal_handlers(
+                    plane_ctx.clone(),
+                ),
+            );
+        } else {
+            info!(
+                "Beckn internal plane disabled (BECKN_INTERNAL_TOKEN not set)"
+            );
+        }
+        let plane_app = plane_app.into_make_service();
         tokio::spawn(async move {
-            match TcpListener::bind(&admin_bind).await {
+            match TcpListener::bind(&plane_bind).await {
                 Ok(l) => {
-                    info!("🔒 Private admin plane on http://{admin_bind}");
-                    if let Err(e) = axum::serve(l, admin_app).await {
-                        tracing::error!("admin server error: {e}");
+                    info!("🔒 Private internal plane on http://{plane_bind}");
+                    if let Err(e) = axum::serve(l, plane_app).await {
+                        tracing::error!("internal plane server error: {e}");
                     }
                 }
                 Err(e) => tracing::error!(
-                    "failed to bind admin listener on {admin_bind}: {e}"
+                    "failed to bind internal plane listener on {plane_bind}: {e}"
                 ),
             }
         });
     } else {
-        info!("Admin plane disabled (ADMIN_INTERNAL_TOKEN not set)");
+        info!(
+            "Private internal plane disabled (no ADMIN_INTERNAL_TOKEN / \
+             BECKN_INTERNAL_TOKEN)"
+        );
     }
 
     let listener = TcpListener::bind(&address).await.unwrap();

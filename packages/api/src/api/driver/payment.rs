@@ -60,6 +60,8 @@ pub async fn charge_phone_number(
 
     let base_url = std::env::var("MPESA_CALLBACK_BASE_URL")
         .expect("MPESA_CALLBACK_BASE_URL must be set");
+    let passkey =
+        std::env::var("MPESA_PASSKEY").expect("MPESA_PASSKEY must be set");
     let url = Url::parse(&format!("{}/mpesa/callback", base_url)).unwrap();
     let res = client
         .stk_push()
@@ -67,6 +69,7 @@ pub async fn charge_phone_number(
             &*std::env::var("MPESA_SHORT_CODE")
                 .expect("MPESA_SHORT_CODE must be set"),
         )
+        .password(&*passkey)
         .transaction_type(TransactionType::CustomerPayBillOnline)
         .amount(body.amount)
         .party_a(&*body.phone_number)

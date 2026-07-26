@@ -1,0 +1,6 @@
+# Rendered/bootstrap artifacts — the templates and network.env.example are
+# the sources of truth.
+network.env
+registry/config/
+gateway/config/
+RolePermission.xlsx

@@ -64,6 +64,20 @@ pub struct Config {
     pub admin_port: u16,
     #[serde(default)]
     pub admin_internal_token: String,
+    /// Shared secret for the Beckn BPP adapter's internal plane (served on the
+    /// same private listener as the admin plane). The adapter sends it in
+    /// `X-Internal-Token` when handing a confirmed network booking to
+    /// dispatch. Empty (the default) disables the Beckn internal routes.
+    #[serde(default)]
+    pub beckn_internal_token: String,
+    /// Base URL of the beckn-bpp-adapter's own listener (e.g.
+    /// `http://127.0.0.1:8092`). When set, dispatch outcomes for network
+    /// bookings (driver assigned / no driver found) are pushed back to the
+    /// adapter's `/internal/dispatch/*` webhooks, authenticated with
+    /// `beckn_internal_token`. Empty disables the push (the booking still
+    /// dispatches; the BAP just never learns the driver).
+    #[serde(default)]
+    pub beckn_adapter_url: String,
     /// Referral reward issued to the referrer when their referred driver is
     /// activated. `referral_reward_type` is one of `cash_credit` (default),
     /// `subscription_days`, or `badge`; `referral_reward_value` is the
@@ -73,6 +87,18 @@ pub struct Config {
     pub referral_reward_type: String,
     #[serde(default = "default_referral_reward_value")]
     pub referral_reward_value: f64,
+    /// Resend API key (starts with `re_`). Left empty, outbound email is
+    /// disabled — send attempts return an error rather than hitting the network.
+    #[serde(default)]
+    pub resend_api_key: String,
+    /// Default sender for transactional email, e.g. `"Sit We Go <no-reply@sitwego.com>"`.
+    /// Individual templates may override it.
+    #[serde(default = "default_email_from")]
+    pub email_from: String,
+}
+
+fn default_email_from() -> String {
+    "Sit We Go <no-reply@sitwego.com>".to_string()
 }
 
 fn default_admin_port() -> u16 {
@@ -90,6 +116,11 @@ fn default_referral_reward_value() -> f64 {
 impl Config {
     pub fn is_dev(&self) -> bool {
         matches!(self.app_env.as_str(), "dev" | "development" | "local")
+    }
+
+    /// Whether outbound email is configured (a Resend key is present).
+    pub fn email_enabled(&self) -> bool {
+        !self.resend_api_key.trim().is_empty()
     }
 
     /// Resolve the interface the admin plane should bind to.
