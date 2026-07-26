@@ -57,6 +57,7 @@ This repository is a Rust Cargo workspace. Each crate lives under [packages/](pa
 | [packages/twilio](packages/twilio) | Twilio integration |
 | [packages/utils](packages/utils) | Shared utilities (hashing, HTTP helpers) |
 | [packages/shared_macro](packages/shared_macro) | Shared procedural macros |
+| [packages/beckn-bpp-adapter](packages/beckn-bpp-adapter) | Beckn BPP adapter for Beckn-network compliance _(WIP — not yet complete)_ |
 
 ## Getting Started
 
@@ -99,6 +100,7 @@ The service listens on the port defined by `PORT` (default in [scripts](scripts/
 ## Roadmap / TODO
 
 - [ ] **Surge pricing implementation** — dynamic fare multiplier based on demand/supply in a given area.
+- [ ] **Beckn BPP adapter** — make Sit-We-Go compliant with the [Beckn](https://beckn.org/) network as a BPP. Work in progress in [packages/beckn-bpp-adapter](packages/beckn-bpp-adapter) — not yet complete.
 
 ## Get Involved
 Explore the code, provide feedback, and contribute to the project. Together, we can create a scalable, efficient, safe, and sustainable transportation network.
