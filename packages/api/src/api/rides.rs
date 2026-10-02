@@ -710,6 +710,20 @@ pub async fn rider_cancel_ride_request(
         ride_id = %ride_id.0,
         "Rider is cancelling dispatch request"
     );
+    // Only the rider who started this search may stop it. A request that is
+    // no longer dispatching falls through to the existing "already finished"
+    // path below.
+    if let Some(owner) = ctx.dispatch_api_manager.rider_of(&ride_id.0)
+        && owner != client_id
+    {
+        tracing::warn!(
+            tag = "rider_cancel_ride_request",
+            rider_id = %client_id,
+            ride_id = %ride_id.0,
+            "Rejected cancel of another rider's dispatch request"
+        );
+        return Err(AppError::NotFound("Ride request not found".to_string()));
+    }
     match ctx
         .dispatch_api_manager
         .send_driver_response(&ride_id.0, DispatchEvent::CancelRequest)
@@ -1115,7 +1129,32 @@ pub struct CancellRideBody {
 
 #[derive(Debug, Deserialize)]
 pub struct CancelRideParams {
-    pub account_type: AccountType,
+    /// Both apps still send `?account_type=`. It never grants access: the
+    /// cancelling side is derived from the JWT subject (`cancelling_side`),
+    /// and this only breaks the tie if the caller is both rider and driver.
+    pub account_type: Option<AccountType>,
+}
+
+/// Which side of the ride the authenticated caller is, or `None` if they
+/// are not part of it. Admins never reach this route with an admin identity
+/// (they act through the private admin plane), so a claimed `admin` — or any
+/// claim the caller doesn't hold — is ignored rather than trusted.
+fn cancelling_side(
+    customer_id: &str,
+    driver_id: &str,
+    caller: &str,
+    claimed: Option<AccountType>,
+) -> Option<AccountType> {
+    let is_customer = !customer_id.is_empty() && customer_id == caller;
+    let is_driver = !driver_id.is_empty() && driver_id == caller;
+    match (is_customer, is_driver) {
+        (true, true) if claimed == Some(AccountType::Driver) => {
+            Some(AccountType::Driver)
+        }
+        (true, _) => Some(AccountType::Customer),
+        (false, true) => Some(AccountType::Driver),
+        (false, false) => None,
+    }
 }
 
 const MAX_CANCEL_REASON_LEN: usize = 255;
@@ -1158,20 +1197,27 @@ pub async fn cancel_ride(
         return Err(AppError::NotFound("Ride request not found".to_string()));
     };
 
-    // Only a participant of this ride (or an admin) may cancel it, and the
-    // claimed account type must belong to the authenticated caller — a
-    // driver can't cancel as the rider, nor either of them someone else's
-    // ride.
-    let is_participant = match by.account_type {
-        AccountType::Customer => ride_request.customer_id == id,
-        AccountType::Driver => ride_request.driver_id == id,
-        AccountType::Admin => true,
-    };
-    if !is_participant {
+    // Only a participant of this ride may cancel it, and the side they cancel
+    // as comes from who they are, not from the query string: trusting the
+    // claimed `account_type` let any logged-in user cancel any ride with
+    // `?account_type=admin`.
+    let Some(account_type) = cancelling_side(
+        &ride_request.customer_id,
+        &ride_request.driver_id,
+        &id,
+        by.account_type.clone(),
+    ) else {
+        tracing::warn!(
+            tag = "cancel_ride",
+            ride_id = %ride_id.0,
+            caller = %id,
+            claimed = ?by.account_type,
+            "Rejected cancel from a non-participant"
+        );
         return Err(AppError::Unauthorized(
             "Not a participant of this ride".to_string(),
         ));
-    }
+    };
 
     // Idempotent: the rider app retries failed cancels (react-query
     // `retry: 3`), so a repeat of an already-applied cancel must succeed
@@ -1192,7 +1238,7 @@ pub async fn cancel_ride(
             &ride_id,
             &reason,
             note.as_deref(),
-            &by.account_type.to_string(),
+            &account_type.to_string(),
         )
         .await
         .map_err(|err| AppError::InternalError(err.to_string()))?;
@@ -1204,7 +1250,7 @@ pub async fn cancel_ride(
 
     // From here the cancellation is durable — the remaining steps are
     // best-effort and must not fail the request.
-    if by.account_type == AccountType::Driver
+    if account_type == AccountType::Driver
         && let Err(err) = ctx
             .db
             .update_driver_stats_rides_cancelled(
@@ -1250,7 +1296,7 @@ pub async fn cancel_ride(
         event_payload: EventPayload {
             ride_cancel: RideCancelPayload {
                 reason,
-                canceled_by: match by.account_type {
+                canceled_by: match account_type {
                     AccountType::Driver => 0,
                     AccountType::Customer => 1,
                     AccountType::Admin => 2,
@@ -2479,6 +2525,73 @@ fn filter_locations_based_on_accuracy(
             is_within_accuracy && is_far_enough
         })
         .collect()
+}
+
+#[cfg(test)]
+mod cancel_authz_tests {
+    use super::*;
+
+    const RIDER: &str = "rider-1";
+    const DRIVER: &str = "driver-1";
+
+    #[test]
+    fn participants_cancel_as_their_own_side() {
+        for claimed in
+            [None, Some(AccountType::Customer), Some(AccountType::Admin)]
+        {
+            assert_eq!(
+                cancelling_side(RIDER, DRIVER, RIDER, claimed),
+                Some(AccountType::Customer)
+            );
+        }
+        for claimed in
+            [None, Some(AccountType::Driver), Some(AccountType::Customer)]
+        {
+            assert_eq!(
+                cancelling_side(RIDER, DRIVER, DRIVER, claimed),
+                Some(AccountType::Driver)
+            );
+        }
+    }
+
+    /// The original bug: `?account_type=admin` let anyone cancel any ride.
+    #[test]
+    fn outsiders_are_rejected_whatever_they_claim() {
+        for claimed in [
+            None,
+            Some(AccountType::Admin),
+            Some(AccountType::Customer),
+            Some(AccountType::Driver),
+        ] {
+            assert_eq!(
+                cancelling_side(RIDER, DRIVER, "someone-else", claimed),
+                None
+            );
+        }
+    }
+
+    /// Before a driver is assigned the column is empty; an empty caller id
+    /// must never match it.
+    #[test]
+    fn empty_ids_never_match() {
+        assert_eq!(
+            cancelling_side(RIDER, "", "", Some(AccountType::Driver)),
+            None
+        );
+        assert_eq!(cancelling_side("", "", "", None), None);
+    }
+
+    #[test]
+    fn claim_only_breaks_a_tie() {
+        assert_eq!(
+            cancelling_side("same", "same", "same", Some(AccountType::Driver)),
+            Some(AccountType::Driver)
+        );
+        assert_eq!(
+            cancelling_side("same", "same", "same", None),
+            Some(AccountType::Customer)
+        );
+    }
 }
 
 #[cfg(test)]

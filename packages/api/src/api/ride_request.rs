@@ -142,6 +142,13 @@ impl DispatchApiManager {
         }
     }
 
+    /// The rider who started this dispatch, while it is still running.
+    pub fn rider_of(&self, ride_req_id: &str) -> Option<String> {
+        self.requests
+            .get(ride_req_id)
+            .map(|state| state.metadata.rider_id.clone())
+    }
+
     /// Send driver response to the appropriate dispatcher
     pub fn send_driver_response(
         &self,
